@@ -1,10 +1,9 @@
 package db
 
 import (
+	"PulseFeed/internal/app"
 	"PulseFeed/internal/config"
 	"fmt"
-
-	"PulseFeed/internal/errs"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -24,7 +23,7 @@ func NewDB(dbcfg config.DatabaseConfig) (*gorm.DB, error) {
 }
 
 func AutoMigrate(db *gorm.DB) error {
-	return errs.NotImplemented
+	return app.NotImplemented
 }
 
 func CloseDB(db *gorm.DB) error {
