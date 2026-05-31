@@ -170,7 +170,7 @@ func (h *AccountHandler) Login(c *gin.Context) {
 	}
 	accessToken, refreshToken, err := h.accountService.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(401, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(200, LoginResponse{Token: accessToken, RefreshToken: refreshToken, AccountID: account.ID, Username: account.Username})
