@@ -1,0 +1,87 @@
+package auth
+
+import (
+	"PulseFeed/internal/config"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"log"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+var secret []byte
+
+func Init(cfg *config.JWTConfig) {
+	s := cfg.Secret
+	if s == "" {
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			log.Fatalf("failed to generate JWT secret: %v", err)
+		}
+		s = hex.EncodeToString(b)
+		log.Println("Warning: JWT secret is empty, using random key")
+	}
+	secret = []byte(s)
+}
+
+func jwtSecret() []byte {
+	return secret
+}
+
+type Claims struct {
+	AccountID uint   `json:"account_id"`
+	Username  string `json:"username"`
+	jwt.RegisteredClaims
+}
+
+func GenerateToken(accountID uint, username string) (string, error) {
+	now := time.Now()
+
+	claims := Claims{
+		AccountID: accountID,
+		Username:  username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	return token.SignedString(jwtSecret())
+}
+
+func GenerateRefreshToken(accountID uint) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func ParseToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&Claims{},
+		func(token *jwt.Token) (interface{}, error) {
+			if token.Method == nil || token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+				return nil, errors.New("unexpected signing method")
+			}
+			return jwtSecret(), nil
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+
+	return claims, nil
+}
