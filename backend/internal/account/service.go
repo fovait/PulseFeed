@@ -1,10 +1,14 @@
 package account
 
 import (
+	"PulseFeed/internal/auth"
 	rediscache "PulseFeed/internal/middleware/redis"
 	"context"
 	"errors"
+	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -42,9 +46,7 @@ func (as *AccountService) Rename(ctx context.Context, accountID uint, newUsernam
 		return "", ErrNewUsernameRequired
 	}
 
-	// token, err := auth.GenerateToken(accountID, newUsername)
-	var err error
-	token := "24545"
+	token, err := auth.GenerateToken(accountID, newUsername)
 	if err != nil {
 		return "", err
 	}
@@ -58,14 +60,16 @@ func (as *AccountService) Rename(ctx context.Context, accountID uint, newUsernam
 		}
 		return "", err
 	}
-	// if as.cache != nil {
-	// 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	// 	defer cancel()
 
-	// 	if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", accountID), []byte(token), 24*time.Hour); err != nil {
-	// 		log.Printf("failed to set cache: %v", err)
-	// 	}
-	// }
+	key := as.cache.Key("account:%d", accountID)
+	if as.cache != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+
+		if err := as.cache.SetBytes(cacheCtx, key, []byte(token), 24*time.Hour); err != nil {
+			log.Printf("failed to set cache: %v", err)
+		}
+	}
 	return token, nil
 }
 
@@ -116,42 +120,42 @@ func (as *AccountService) Login(ctx context.Context, username, password string) 
 	if err != nil {
 		return "", "", err
 	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password)); err != nil {
 		return "", "", err
 	}
 
-	var err1 error
-	accessToken := "todo"
-	// accessToken, err := auth.GenerateToken(account.ID, account.Username)
-	if err1 != nil {
-		return "", "", err1
+	accessToken, err := auth.GenerateToken(account.ID, account.Username)
+	if err != nil {
+		return "", "", err
 	}
 
-	var err2 error
-	// refreshToken, err := auth.GenerateRefreshToken(account.ID)
-	refreshToken := "todo"
-	if err2 != nil {
-		return "", "", err2
+	refreshToken, err := auth.GenerateRefreshToken(account.ID)
+	if err != nil {
+		return "", "", err
 	}
 
 	if err := as.accountRepository.Login(ctx, account.ID, accessToken, refreshToken); err != nil {
 		return "", "", err
 	}
 
-	// if as.cache != nil {
-	// 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	// 	defer cancel()
+	if as.cache != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
 
-	// 	if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(accessToken), 24*time.Hour); err != nil {
-	// 		log.Printf("failed to set cache: %v", err)
-	// 	}
-	// 	if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d:refresh", account.ID), []byte(refreshToken), 7*24*time.Hour); err != nil {
-	// 		log.Printf("failed to set refresh cache: %v", err)
-	// 	}
-	// 	if err := as.cache.SetBytes(cacheCtx, as.cache.Key("refresh:%s", refreshToken), []byte(strconv.FormatUint(uint64(account.ID), 10)), 7*24*time.Hour); err != nil {
-	// 		log.Printf("failed to set refresh lookup: %v", err)
-	// 	}
-	// }
+		if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(accessToken), 24*time.Hour); err != nil {
+			log.Printf("failed to set cache: %v", err)
+		}
+
+		if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d:refresh", account.ID), []byte(refreshToken), 7*24*time.Hour); err != nil {
+			log.Printf("failed to set refresh cache: %v", err)
+		}
+
+		if err := as.cache.SetBytes(cacheCtx, as.cache.Key("refresh:%s", refreshToken), []byte(strconv.FormatUint(uint64(account.ID), 10)), 7*24*time.Hour); err != nil {
+			log.Printf("failed to set refresh lookup: %v", err)
+		}
+	}
+
 	return accessToken, refreshToken, nil
 }
 
@@ -163,22 +167,24 @@ func (as *AccountService) Logout(ctx context.Context, accountID uint) error {
 	if account.Token == "" {
 		return nil
 	}
-	// if as.cache != nil {
-	// 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	// 	defer cancel()
+	if as.cache != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
 
-	// 	if err := as.cache.Del(cacheCtx, as.cache.Key("account:%d", account.ID)); err != nil {
-	// 		log.Printf("failed to del cache: %v", err)
-	// 	}
-	// 	if err := as.cache.Del(cacheCtx, as.cache.Key("account:%d:refresh", account.ID)); err != nil {
-	// 		log.Printf("failed to del refresh cache: %v", err)
-	// 	}
-	// 	if account.RefreshToken != "" {
-	// 		if err := as.cache.Del(cacheCtx, as.cache.Key("refresh:%s", account.RefreshToken)); err != nil {
-	// 			log.Printf("failed to del refresh lookup: %v", err)
-	// 		}
-	// 	}
-	// }
+		if err := as.cache.Del(cacheCtx, as.cache.Key("account:%d", account.ID)); err != nil {
+			log.Printf("failed to del cache: %v", err)
+		}
+
+		if err := as.cache.Del(cacheCtx, as.cache.Key("account:%d:refresh", account.ID)); err != nil {
+			log.Printf("failed to del refresh cache: %v", err)
+		}
+
+		if account.RefreshToken != "" {
+			if err := as.cache.Del(cacheCtx, as.cache.Key("refresh:%s", account.RefreshToken)); err != nil {
+				log.Printf("failed to del refresh lookup: %v", err)
+			}
+		}
+	}
 	return as.accountRepository.Logout(ctx, account.ID)
 }
 
@@ -208,40 +214,44 @@ func (as *AccountService) RefreshAccessToken(ctx context.Context, refreshToken s
 	if refreshToken == "" {
 		return "", 0, "", errors.New("refresh token is empty")
 	}
-	// if as.cache != nil {
-	// 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	// 	defer cancel()
-	// 	b, err := as.cache.GetBytes(cacheCtx, as.cache.Key("refresh:%s", refreshToken))
-	// 	if err == nil {
-	// 		idStr := string(b)
-	// 		id, parseErr := strconv.ParseUint(idStr, 10, 64)
-	// 		if parseErr == nil {
-	// 			account, err := as.FindByID(ctx, uint(id))
-	// 			if err == nil && account != nil && account.RefreshToken == refreshToken {
-	// 				newToken, err := auth.GenerateToken(account.ID, account.Username)
-	// 				if err != nil {
-	// 					return "", 0, "", err
-	// 				}
-	// 				if err := as.accountRepository.UpdateToken(ctx, account.ID, newToken); err != nil {
-	// 					return "", 0, "", err
-	// 				}
-	// 				if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(newToken), 24*time.Hour); err != nil {
-	// 					log.Printf("failed to set cache: %v", err)
-	// 				}
-	// 				return newToken, account.ID, account.Username, nil
-	// 			}
-	// 		}
-	// 	}
-	// }
+
+	if as.cache != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		b, err := as.cache.GetBytes(cacheCtx, as.cache.Key("refresh:%s", refreshToken))
+		if err == nil {
+			idStr := string(b)
+			id, parseErr := strconv.ParseUint(idStr, 10, 64)
+			if parseErr == nil {
+				account, err := as.FindByID(ctx, uint(id))
+				if err == nil && account != nil && account.RefreshToken == refreshToken {
+					newToken, err := auth.GenerateToken(account.ID, account.Username)
+					if err != nil {
+						return "", 0, "", err
+					}
+
+					if err := as.accountRepository.UpdateToken(ctx, account.ID, newToken); err != nil {
+						return "", 0, "", err
+					}
+
+					if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(newToken), 24*time.Hour); err != nil {
+						log.Printf("failed to set cache: %v", err)
+					}
+					return newToken, account.ID, account.Username, nil
+				}
+			}
+		}
+	}
+
 	accounts, err := as.FindAll(ctx)
+
 	if err != nil {
 		return "", 0, "", err
 	}
+
 	for _, acc := range accounts {
 		if acc.RefreshToken == refreshToken {
-			// newToken, err := auth.GenerateToken(acc.ID, acc.Username)
-			var err error
-			newToken := "todo"
+			newToken, err := auth.GenerateToken(acc.ID, acc.Username)
 			if err != nil {
 				return "", 0, "", err
 			}
