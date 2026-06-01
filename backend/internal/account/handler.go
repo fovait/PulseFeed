@@ -2,10 +2,7 @@ package account
 
 import (
 	"PulseFeed/internal/app"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -217,7 +214,7 @@ func (h *AccountHandler) UploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	filename, err := randHex(16)
+	filename, err := app.RandHex(16)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -229,7 +226,7 @@ func (h *AccountHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 	urlPath := path.Join("/static", "avatars", strconv.FormatUint(uint64(accountID), 10), filename)
-	avatarURL := buildAbsoluteURL(c, urlPath)
+	avatarURL := app.BuildAbsoluteURL(c, urlPath)
 	if err := h.accountService.UpdateAvatar(c.Request.Context(), accountID, avatarURL); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -267,25 +264,6 @@ func (h *AccountHandler) Refresh(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, LoginResponse{Token: newToken, AccountID: accountID, Username: username})
-}
-
-func randHex(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("rand.Read: %w", err)
-	}
-	return hex.EncodeToString(b), nil
-}
-
-func buildAbsoluteURL(c *gin.Context, p string) string {
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	if xf := c.GetHeader("X-Forwarded-Proto"); xf != "" {
-		scheme = xf
-	}
-	return fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, p)
 }
 
 func getAccountID(c *gin.Context) (uint, error) {
