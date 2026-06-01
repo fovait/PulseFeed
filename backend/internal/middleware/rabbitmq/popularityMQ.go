@@ -66,5 +66,7 @@ func (p *PopularityMQ) Close() error {
 	if p == nil || p.ch == nil {
 		return nil
 	}
-	return p.ch.Close()
+	err := p.ch.Close()
+	p.ch = nil
+	return err
 }
