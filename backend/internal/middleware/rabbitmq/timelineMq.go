@@ -69,7 +69,7 @@ func (t *TimelineMQ) PublishVideo(ctx context.Context, videoID uint, createTime 
 	event := TimelineEvent{
 		EventID:    eventID,
 		VideoID:    videoID,
-		CreateTime: createTime.UnixMilli(),
+		CreateTime: createTime.Unix(),
 		OccurredAt: time.Now().UTC(),
 	}
 
