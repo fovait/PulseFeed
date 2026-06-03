@@ -2,7 +2,6 @@ package worker
 
 import (
 	"PulseFeed/internal/middleware/rabbitmq"
-	"PulseFeed/internal/social"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,21 +9,19 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	"gorm.io/gorm"
 )
 
 type SocialWorker struct {
 	ch    *amqp.Channel
-	repo  *social.SocialRepository
 	queue string
 }
 
-func NewSocialWorker(ch *amqp.Channel, repo *social.SocialRepository, queue string) *SocialWorker {
-	return &SocialWorker{ch: ch, repo: repo, queue: queue}
+func NewSocialWorker(ch *amqp.Channel, queue string) *SocialWorker {
+	return &SocialWorker{ch: ch, queue: queue}
 }
 
 func (w *SocialWorker) Run(ctx context.Context) error {
-	if w == nil || w.ch == nil || w.repo == nil {
+	if w == nil || w.ch == nil {
 		return errors.New("social worker is not initialized")
 	}
 	if w.queue == "" {
@@ -94,28 +91,51 @@ func (w *SocialWorker) process(ctx context.Context, body []byte) error {
 		return nil
 	}
 	if evt.FollowerID == 0 || evt.VloggerID == 0 {
+		log.Printf("social worker: invalid event: %+v", evt)
 		return nil
 	}
 
 	switch evt.Action {
 	case "follow":
-		err := w.repo.Follow(ctx, &social.Social{
-			FollowerID: evt.FollowerID,
-			VloggerID:  evt.VloggerID,
-		})
-		if err == nil {
-			return nil
-		}
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return nil
-		}
-		return err
+		return w.handleFollow(ctx, evt)
 	case "unfollow":
-		return w.repo.Unfollow(ctx, &social.Social{
-			FollowerID: evt.FollowerID,
-			VloggerID:  evt.VloggerID,
-		})
+		return w.handleUnfollow(ctx, evt)
 	default:
+		log.Printf("social worker: unknown action %s", evt.Action)
 		return nil
 	}
+}
+
+func (w *SocialWorker) handleFollow(ctx context.Context, evt rabbitmq.SocialEvent) error {
+	// 注意：这里不再写 socials 表。
+	// 关注关系已经在 SocialService.Follow 中同步写入 MySQL。
+	//
+	// 这里以后可以做：
+	// 1. 给被关注者发通知
+	// 2. 写行为日志
+	// 3. 更新推荐画像
+	// 4. 推送消息
+
+	log.Printf(
+		"social notify: user %d followed user %d, event_id=%s",
+		evt.FollowerID,
+		evt.VloggerID,
+		evt.EventID,
+	)
+
+	return nil
+}
+
+func (w *SocialWorker) handleUnfollow(ctx context.Context, evt rabbitmq.SocialEvent) error {
+	// 取消关注通常不需要通知对方。
+	// 这里可以只记录行为日志，或者给推荐系统使用。
+
+	log.Printf(
+		"social log: user %d unfollowed user %d, event_id=%s",
+		evt.FollowerID,
+		evt.VloggerID,
+		evt.EventID,
+	)
+
+	return nil
 }
