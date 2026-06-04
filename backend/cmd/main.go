@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"PulseFeed/internal/auth"
 	"PulseFeed/internal/config"
 	"PulseFeed/internal/db"
 	apphttp "PulseFeed/internal/http"
@@ -35,6 +36,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	auth.Init(&cfg.JWT)
+
 	if usedDefault {
 		log.Printf("Config file %s not found, using default local config", configPath)
 	} else {

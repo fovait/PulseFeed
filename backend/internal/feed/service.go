@@ -242,7 +242,7 @@ func (f *FeedService) GetVideoByIDs(
 				}
 
 				var v video.Video
-				if err := json.Unmarshal([]byte(str), v); err != nil {
+				if err := json.Unmarshal([]byte(str), &v); err != nil {
 					// JSON 解析失败，说明缓存内容可能异常。
 					// 不让它影响主流程，直接降级到 MySQL。
 					missedL2 = append(missedL2, id)

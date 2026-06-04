@@ -135,7 +135,7 @@ func (repo *FeedRepository) ListByFollowing(
 	followingSubQuery := repo.db.WithContext(ctx).
 		Model(&social.Social{}).
 		Select("vlogger_id").
-		Where("followed_id = ?", viewerAccountID)
+		Where("follower_id = ?", viewerAccountID)
 
 	query := repo.db.WithContext(ctx).
 		Model(&video.Video{}).
