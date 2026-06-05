@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"PulseFeed/internal/account"
@@ -31,6 +32,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Printf("SetTrustedProxies failed: %v", err)
 	}
+	r.Use(localDevCORS())
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -84,6 +86,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	{
 		videoGroup.POST("/listByAuthorID", videoHandler.ListByAuthorID)
 		videoGroup.POST("/getDetail", videoHandler.GetDetail)
+		videoGroup.POST("/listDetails", videoHandler.ListDetails)
 	}
 	protectedVideoGroup := videoGroup.Group("")
 	protectedVideoGroup.Use(jwt.JWTAuth(accountRepository, cache))
@@ -151,6 +154,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	{
 		protectedSocialGroup.POST("/follow", socialLimiter, socialHandler.Follow)
 		protectedSocialGroup.POST("/unfollow", socialLimiter, socialHandler.Unfollow)
+		protectedSocialGroup.POST("/isFollowed", socialHandler.IsFollowed)
 		protectedSocialGroup.POST("/getAllFollowers", socialHandler.GetAllFollowers)
 		protectedSocialGroup.POST("/getAllVloggers", socialHandler.GetAllVloggers)
 		protectedSocialGroup.POST("/getCounts", socialHandler.GetCounts)
@@ -219,6 +223,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	{
 		protectedMessageGroup.POST("/send", messageHandler.Send)
 		protectedMessageGroup.POST("/list", messageHandler.List)
+		protectedMessageGroup.POST("/conversations", messageHandler.ListConversations)
 	}
 
 	// event
@@ -311,6 +316,42 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 
 	bg := newBackgroundWorkers(db, cache, rmq, timelineMQ, eventMQ, sseHub)
 	return r, bg
+}
+
+func localDevCORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if isLocalDevOrigin(origin) {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}
+
+func isLocalDevOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+	default:
+		return false
+	}
+	switch parsed.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }
 
 // feedRecommend 在 SoftJWT 下调用推荐：未登录 accountID=0，仍可混排；登录后才有曝光去重等能力。

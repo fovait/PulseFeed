@@ -62,14 +62,23 @@ func (b *BackgroundWorkers) Start(ctx context.Context) {
 	}
 }
 
-// Stop 等待所有后台 worker 在 ctx 取消后退出。
+// Stop 等待所有后台 worker 退出，超时 10 秒后强制返回。
 func (b *BackgroundWorkers) Stop() {
 	if b == nil {
 		return
 	}
 	log.Println("waiting for background workers to stop...")
-	b.wg.Wait()
-	log.Println("background workers stopped")
+	done := make(chan struct{})
+	go func() {
+		b.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		log.Println("background workers stopped")
+	case <-time.After(10 * time.Second):
+		log.Println("background workers stop timed out, forcing exit")
+	}
 }
 
 func runEventMetricsWorker(ctx context.Context, rmq *rabbitmq.RabbitMQ, cache *rediscache.Client) {

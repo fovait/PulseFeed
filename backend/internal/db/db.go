@@ -34,7 +34,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("database is nil")
 	}
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&account.Account{},
 		&video.Video{},
 		&video.Like{},
@@ -49,7 +49,19 @@ func AutoMigrate(db *gorm.DB) error {
 		&moderation.ContentReport{},
 		&recommend.RecommendExposure{},
 		&worker.Notification{},
-	)
+	); err != nil {
+		return err
+	}
+
+	return db.Exec(`
+		UPDATE videos v
+		LEFT JOIN (
+			SELECT video_id, COUNT(*) AS cnt
+			FROM comments
+			GROUP BY video_id
+		) c ON c.video_id = v.id
+		SET v.comments_count = COALESCE(c.cnt, 0)
+	`).Error
 }
 
 func CloseDB(db *gorm.DB) error {

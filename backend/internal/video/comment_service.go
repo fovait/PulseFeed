@@ -75,8 +75,12 @@ func (s *CommentService) Publish(ctx context.Context, comment *Comment) error {
 			if err := tx.Create(comment).Error; err != nil {
 				return err
 			}
+			if err := tx.Model(&Video{}).Where("id = ?", comment.VideoID).
+				UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error; err != nil {
+				return err
+			}
 			return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
-				UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
+				UpdateColumn("comments_count", gorm.Expr("comments_count + 1")).Error
 		}); err != nil {
 			return err
 		}
@@ -107,7 +111,7 @@ func (s *CommentService) Delete(ctx context.Context, commentID uint, accountID u
 		}
 	}
 
-	deleted, err := s.repo.DeleteByID(ctx, commentID)
+	deleted, err := s.repo.ApplyDeleteTx(ctx, commentID)
 	if err != nil {
 		return err
 	}

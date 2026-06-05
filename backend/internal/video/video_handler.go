@@ -217,6 +217,23 @@ func (vh *VideoHandler) GetDetail(c *gin.Context) {
 	c.JSON(200, video)
 }
 
+func (vh *VideoHandler) ListDetails(c *gin.Context) {
+	var req ListDetailsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	videos, err := vh.service.ListDetails(c.Request.Context(), req.IDs)
+	if err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	if videos == nil {
+		videos = []Video{}
+	}
+	c.JSON(200, gin.H{"videos": videos})
+}
+
 func (vh *VideoHandler) UpdateLikesCount(c *gin.Context) {
 	var req UpdateLikesCountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

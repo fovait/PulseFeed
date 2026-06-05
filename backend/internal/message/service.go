@@ -103,12 +103,67 @@ func (s *Service) List(ctx context.Context, userID uint, req ListRequest) (ListR
 	}, nil
 }
 
+func (s *Service) ListConversations(ctx context.Context, userID uint, req ListConversationsRequest) (ListConversationsResponse, error) {
+	if s == nil || s.repo == nil {
+		return ListConversationsResponse{}, errors.New("message service is not initialized")
+	}
+	if userID == 0 {
+		return ListConversationsResponse{}, errors.New("user_id is required")
+	}
+
+	conversations, err := s.repo.ListConversations(ctx, userID, normalizeConversationLimit(req.Limit))
+	if err != nil {
+		return ListConversationsResponse{}, err
+	}
+
+	// 批量查 peer 的 username，避免 N+1。
+	if s.accountRepo != nil && len(conversations) > 0 {
+		peerIDs := make([]uint, 0, len(conversations))
+		for _, c := range conversations {
+			if c.PeerID > 0 {
+				peerIDs = append(peerIDs, c.PeerID)
+			}
+		}
+		accounts, err := s.accountRepo.FindByIDs(ctx, peerIDs)
+		if err == nil {
+			for i := range conversations {
+				if a, ok := accounts[conversations[i].PeerID]; ok {
+					conversations[i].PeerUsername = a.Username
+				}
+			}
+		}
+	}
+
+	var unreadCount int64
+	for i := range conversations {
+		unreadCount += conversations[i].UnreadCount
+	}
+	if conversations == nil {
+		conversations = []Conversation{}
+	}
+
+	return ListConversationsResponse{
+		Conversations: conversations,
+		UnreadCount:   unreadCount,
+	}, nil
+}
+
 func normalizeLimit(limit int) int {
 	if limit <= 0 {
 		return 20
 	}
 	if limit > 50 {
 		return 50
+	}
+	return limit
+}
+
+func normalizeConversationLimit(limit int) int {
+	if limit <= 0 {
+		return 50
+	}
+	if limit > 100 {
+		return 100
 	}
 	return limit
 }

@@ -56,6 +56,19 @@ func (vr *VideoRepository) GetByID(ctx context.Context, id uint) (*Video, error)
 	return &video, nil
 }
 
+func (vr *VideoRepository) ListByIDs(ctx context.Context, ids []uint) ([]Video, error) {
+	if len(ids) == 0 {
+		return []Video{}, nil
+	}
+	var videos []Video
+	if err := vr.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
 func (vr *VideoRepository) UpdateLikesCount(ctx context.Context, id uint, likesCount int64) error {
 	if err := vr.db.WithContext(ctx).Model(&Video{}).
 		Where("id = ?", id).
@@ -89,6 +102,15 @@ func (vr *VideoRepository) ChangeLikesCount(ctx context.Context, id uint, change
 	if err := vr.db.WithContext(ctx).Model(&Video{}).
 		Where("id = ?", id).
 		UpdateColumn("likes_count", gorm.Expr("GREATEST(likes_count + ?, 0)", change)).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vr *VideoRepository) ChangeCommentsCount(ctx context.Context, id uint, change int64) error {
+	if err := vr.db.WithContext(ctx).Model(&Video{}).
+		Where("id = ?", id).
+		UpdateColumn("comments_count", gorm.Expr("GREATEST(comments_count + ?, 0)", change)).Error; err != nil {
 		return err
 	}
 	return nil

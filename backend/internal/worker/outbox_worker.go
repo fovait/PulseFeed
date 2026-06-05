@@ -33,7 +33,8 @@ func RunOutboxPoller(ctx context.Context, wg *sync.WaitGroup, db *gorm.DB, tmq *
 			err := db.WithContext(ctx).Where("status = ?", "pending").Order("create_time ASC").Limit(100).Find(&messages).Error
 
 			if err != nil || len(messages) == 0 {
-				if !sleepOrDone(ctx, time.Second) {
+				// 空表或出错时放慢轮询（1s → 5s），减少无效 DB 查询。
+				if !sleepOrDone(ctx, 5*time.Second) {
 					return
 				}
 				continue

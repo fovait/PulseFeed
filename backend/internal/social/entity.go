@@ -16,6 +16,14 @@ type UnfollowRequest struct {
 	VloggerID uint `json:"vlogger_id"`
 }
 
+type IsFollowedRequest struct {
+	VloggerID uint `json:"vlogger_id"`
+}
+
+type IsFollowedResponse struct {
+	IsFollowed bool `json:"is_followed"`
+}
+
 type GetAllFollowersRequest struct {
 	VloggerID uint `json:"vlogger_id"`
 }

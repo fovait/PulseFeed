@@ -36,3 +36,20 @@ type ListResponse struct {
 	NextBeforeID uint      `json:"next_before_id,omitempty"`
 	HasMore      bool      `json:"has_more"`
 }
+
+type ListConversationsRequest struct {
+	Limit int `json:"limit" binding:"omitempty,min=1,max=100"`
+}
+
+type Conversation struct {
+	PeerID       uint      `json:"peer_id"`
+	PeerUsername string    `json:"peer_username,omitempty"`
+	LastMessage  Message   `json:"last_message"`
+	UnreadCount  int64     `json:"unread_count"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type ListConversationsResponse struct {
+	Conversations []Conversation `json:"conversations"`
+	UnreadCount   int64          `json:"unread_count"`
+}

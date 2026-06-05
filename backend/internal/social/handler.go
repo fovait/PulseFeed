@@ -151,6 +151,31 @@ func (h *SocialHandler) Unfollow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "unfollowed"})
 }
 
+func (h *SocialHandler) IsFollowed(c *gin.Context) {
+	var req IsFollowedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	if req.VloggerID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "vlogger_id is required"})
+		return
+	}
+	followerID, ok := getCurrentAccountID(c)
+	if !ok {
+		return
+	}
+	isFollowed, err := h.service.IsFollowed(c.Request.Context(), &Social{
+		FollowerID: followerID,
+		VloggerID:  req.VloggerID,
+	})
+	if err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, IsFollowedResponse{IsFollowed: isFollowed})
+}
+
 // GetAllFollowers 查询某个用户的粉丝列表。
 //
 // 支持两种调用方式：

@@ -139,7 +139,7 @@ func (repo *FeedRepository) ListByFollowing(
 
 	query := repo.db.WithContext(ctx).
 		Model(&video.Video{}).
-		Where("author_id IN ?", followingSubQuery).
+		Where("author_id IN (?)", followingSubQuery).
 		Order("create_time DESC").
 		Order("id DESC")
 

@@ -166,13 +166,14 @@ func (h *ChunkUploadHandler) UploadChunk(c *gin.Context) {
 		return
 	}
 
-	if req.ChunkIndex < 0 || req.ChunkIndex >= session.TotalChunks {
+	chunkIndex := *req.ChunkIndex
+	if chunkIndex < 0 || chunkIndex >= session.TotalChunks {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid chunk_index"})
 		return
 	}
 
-	if session.UploadedBits[req.ChunkIndex] {
-		c.JSON(http.StatusOK, gin.H{"chunk_index": req.ChunkIndex})
+	if session.UploadedBits[chunkIndex] {
+		c.JSON(http.StatusOK, gin.H{"chunk_index": chunkIndex})
 		return
 	}
 
@@ -208,7 +209,7 @@ func (h *ChunkUploadHandler) UploadChunk(c *gin.Context) {
 		return
 	}
 
-	chunkPath := filepath.Join(tmpDir, fmt.Sprintf("%d", req.ChunkIndex))
+	chunkPath := filepath.Join(tmpDir, fmt.Sprintf("%d", chunkIndex))
 	if _, seekErr := chunkFile.Seek(0, io.SeekStart); seekErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read chunk"})
 		return
@@ -226,13 +227,13 @@ func (h *ChunkUploadHandler) UploadChunk(c *gin.Context) {
 		return
 	}
 
-	session.UploadedBits[req.ChunkIndex] = true
+	session.UploadedBits[chunkIndex] = true
 	if err := h.saveSession(c, session); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update session"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"chunk_index": req.ChunkIndex})
+	c.JSON(http.StatusOK, gin.H{"chunk_index": chunkIndex})
 }
 
 func (h *ChunkUploadHandler) ChunkStatus(c *gin.Context) {

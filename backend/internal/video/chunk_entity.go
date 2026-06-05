@@ -42,7 +42,7 @@ type InitChunkUploadRequest struct {
 
 type UploadChunkRequest struct {
 	UploadID   string `form:"upload_id" binding:"required"`
-	ChunkIndex int    `form:"chunk_index" binding:"required,min=0"`
+	ChunkIndex *int   `form:"chunk_index" binding:"required,min=0"`
 	ChunkHash  string `form:"chunk_hash" binding:"required"`
 }
 

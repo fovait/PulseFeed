@@ -173,6 +173,42 @@ func (vs *VideoService) GetDetail(ctx context.Context, id uint) (*Video, error) 
 	return loadAndCache(ctx, id, cacheKey)
 }
 
+func (vs *VideoService) ListDetails(ctx context.Context, ids []uint) ([]Video, error) {
+	seen := make(map[uint]bool, len(ids))
+	orderedIDs := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		orderedIDs = append(orderedIDs, id)
+		if len(orderedIDs) >= 50 {
+			break
+		}
+	}
+	if len(orderedIDs) == 0 {
+		return []Video{}, nil
+	}
+
+	videos, err := vs.repo.ListByIDs(ctx, orderedIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[uint]Video, len(videos))
+	for _, v := range videos {
+		byID[v.ID] = v
+	}
+
+	ordered := make([]Video, 0, len(videos))
+	for _, id := range orderedIDs {
+		if v, ok := byID[id]; ok {
+			ordered = append(ordered, v)
+		}
+	}
+	return ordered, nil
+}
+
 func (vs *VideoService) UpdateLikesCount(ctx context.Context, id uint, likesCount int64) error {
 	if err := vs.repo.UpdateLikesCount(ctx, id, likesCount); err != nil {
 		return err

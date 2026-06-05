@@ -61,6 +61,22 @@ func (ar *AccountRepository) FindByID(ctx context.Context, id uint) (*Account, e
 	return &account, nil
 }
 
+// FindByIDs 批量查询账号，返回 map[id]*Account 供调用方按需取用。
+func (ar *AccountRepository) FindByIDs(ctx context.Context, ids []uint) (map[uint]*Account, error) {
+	result := make(map[uint]*Account, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var accounts []Account
+	if err := ar.db.WithContext(ctx).Where("id IN ?", ids).Find(&accounts).Error; err != nil {
+		return nil, err
+	}
+	for i := range accounts {
+		result[accounts[i].ID] = &accounts[i]
+	}
+	return result, nil
+}
+
 func (ar *AccountRepository) FindByUsername(ctx context.Context, username string) (*Account, error) {
 	var account Account
 	if err := ar.db.WithContext(ctx).Where("username = ?", username).First(&account).Error; err != nil {

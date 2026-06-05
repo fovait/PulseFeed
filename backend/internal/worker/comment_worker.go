@@ -130,7 +130,7 @@ func (w *CommentWorker) applyDelete(ctx context.Context, evt *rabbitmq.CommentEv
 	if evt == nil || evt.CommentID == 0 {
 		return nil
 	}
-	_, err := w.comments.DeleteByID(ctx, evt.CommentID)
+	_, err := w.comments.ApplyDeleteTx(ctx, evt.CommentID)
 	if err != nil {
 		return err
 	}

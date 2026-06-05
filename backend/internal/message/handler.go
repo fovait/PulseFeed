@@ -83,3 +83,25 @@ func (h *Handler) List(c *gin.Context) {
 
 	c.JSON(http.StatusOK, resp)
 }
+
+// ListConversations 查询当前用户的私信会话列表。
+func (h *Handler) ListConversations(c *gin.Context) {
+	userID, ok := currentAccountID(c)
+	if !ok {
+		return
+	}
+
+	var req ListConversationsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.service.ListConversations(c.Request.Context(), userID, req)
+	if err != nil {
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}

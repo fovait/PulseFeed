@@ -92,3 +92,65 @@ func (r *Repository) MarkReadFromPeer(
 		Where("from_id = ? AND to_id = ? AND is_read = ?", peerID, userID, false).
 		Update("is_read", true).Error
 }
+
+func (r *Repository) ListConversations(ctx context.Context, userID uint, limit int) ([]Conversation, error) {
+	if userID == 0 {
+		return []Conversation{}, nil
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+
+	var latestMessages []Message
+	if err := r.db.WithContext(ctx).Raw(`
+		SELECT m.*
+		FROM messages m
+		JOIN (
+			SELECT
+				CASE WHEN from_id = ? THEN to_id ELSE from_id END AS peer_id,
+				MAX(id) AS max_id
+			FROM messages
+			WHERE from_id = ? OR to_id = ?
+			GROUP BY peer_id
+		) latest ON latest.max_id = m.id
+		ORDER BY m.id DESC
+		LIMIT ?
+	`, userID, userID, userID, limit).Scan(&latestMessages).Error; err != nil {
+		return nil, err
+	}
+
+	type unreadRow struct {
+		PeerID      uint  `gorm:"column:peer_id"`
+		UnreadCount int64 `gorm:"column:unread_count"`
+	}
+	var unreadRows []unreadRow
+	if err := r.db.WithContext(ctx).
+		Model(&Message{}).
+		Select("from_id AS peer_id, COUNT(*) AS unread_count").
+		Where("to_id = ? AND is_read = ?", userID, false).
+		Group("from_id").
+		Scan(&unreadRows).Error; err != nil {
+		return nil, err
+	}
+
+	unreadByPeer := make(map[uint]int64, len(unreadRows))
+	for _, row := range unreadRows {
+		unreadByPeer[row.PeerID] = row.UnreadCount
+	}
+
+	conversations := make([]Conversation, 0, len(latestMessages))
+	for _, msg := range latestMessages {
+		peerID := msg.FromID
+		if msg.FromID == userID {
+			peerID = msg.ToID
+		}
+		conversations = append(conversations, Conversation{
+			PeerID:      peerID,
+			LastMessage: msg,
+			UnreadCount: unreadByPeer[peerID],
+			UpdatedAt:   msg.CreatedAt,
+		})
+	}
+
+	return conversations, nil
+}

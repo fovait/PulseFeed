@@ -1355,7 +1355,8 @@ func (f *FeedService) buildFeedVideos(
 			// 前面的 before_time / next_before_time 也都用秒级时间戳。
 			CreateTime: v.CreateTime.Unix(),
 
-			LikesCount: v.LikesCount,
+			LikesCount:    v.LikesCount,
+			CommentsCount: v.CommentsCount,
 
 			// 如果 likedMap 中没有这个 videoID，bool 零值就是 false。
 			IsLiked: likedMap[v.ID],

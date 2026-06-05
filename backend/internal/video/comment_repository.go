@@ -76,8 +76,45 @@ func (r *CommentRepository) ApplyPublishTx(ctx context.Context, c *Comment) erro
 			return err
 		}
 
+		if err := tx.Model(&Video{}).
+			Where("id = ?", c.VideoID).
+			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error; err != nil {
+			return err
+		}
+
 		return tx.Model(&Video{}).
 			Where("id = ?", c.VideoID).
-			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
+			UpdateColumn("comments_count", gorm.Expr("comments_count + 1")).Error
 	})
+}
+
+func (r *CommentRepository) ApplyDeleteTx(ctx context.Context, id uint) (deleted bool, err error) {
+	if id == 0 {
+		return false, nil
+	}
+
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var comment Comment
+		if err := tx.First(&comment, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+
+		res := tx.Where("id = ?", id).Delete(&Comment{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
+		deleted = true
+
+		return tx.Model(&Video{}).
+			Where("id = ?", comment.VideoID).
+			UpdateColumn("comments_count", gorm.Expr("GREATEST(comments_count - 1, 0)")).Error
+	})
+
+	return deleted, err
 }

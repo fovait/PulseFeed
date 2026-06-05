@@ -21,15 +21,16 @@ type FeedAuthor struct {
 }
 
 type FeedVideoItem struct {
-	ID          uint       `json:"id"`
-	Author      FeedAuthor `json:"author"`
-	Title       string     `json:"title"`
-	Description string     `json:"description,omitempty"`
-	PlayURL     string     `json:"play_url"`
-	CoverURL    string     `json:"cover_url"`
-	CreateTime  int64      `json:"create_time"` // Unix seconds
-	LikesCount  int64      `json:"likes_count"`
-	IsLiked     bool       `json:"is_liked"`
+	ID            uint       `json:"id"`
+	Author        FeedAuthor `json:"author"`
+	Title         string     `json:"title"`
+	Description   string     `json:"description,omitempty"`
+	PlayURL       string     `json:"play_url"`
+	CoverURL      string     `json:"cover_url"`
+	CreateTime    int64      `json:"create_time"` // Unix seconds
+	LikesCount    int64      `json:"likes_count"`
+	CommentsCount int64      `json:"comments_count"`
+	IsLiked       bool       `json:"is_liked"`
 }
 
 // ========================
