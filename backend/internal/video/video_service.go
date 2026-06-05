@@ -165,7 +165,11 @@ func (vs *VideoService) GetDetail(ctx context.Context, id uint) (*Video, error) 
 	}
 
 	for i := 0; i < 5; i++ {
-		time.Sleep(20 * time.Millisecond)
+		select {
+		case <-time.After(20 * time.Microsecond):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 		if video, err, ok := readCache(ctx, cacheKey); ok {
 			return video, err
 		}

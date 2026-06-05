@@ -112,3 +112,11 @@ func (ar *AccountRepository) FindAll(ctx context.Context) ([]*Account, error) {
 	}
 	return accounts, nil
 }
+
+func (ar *AccountRepository) FindByRefreshToken(ctx context.Context, refreshToken string) (*Account, error) {
+	var account Account
+	if err := ar.db.WithContext(ctx).Where("refresh_token = ?", refreshToken).First(&account).Error; err != nil {
+		return nil, err
+	}
+	return &account, nil
+}

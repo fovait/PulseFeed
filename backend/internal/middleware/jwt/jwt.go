@@ -65,10 +65,10 @@ func SoftJWTAuth(accountRepo *account.AccountRepository, cache *rediscache.Clien
 }
 
 func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo *account.AccountRepository, cache *rediscache.Client) {
-	key := cache.Key("account:%d", claims.AccountID)
 
 	// 先查redis，查到就把token对应的id和username嵌入，继续下一个handler
 	if cache != nil {
+		key := cache.Key("account:%d", claims.AccountID)
 
 		cacheCtx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Millisecond)
 		defer cancel()
@@ -95,6 +95,7 @@ func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo 
 	}
 
 	if cache != nil {
+		key := cache.Key("account:%d", claims.AccountID)
 		cacheCtx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Millisecond)
 		defer cancel()
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CommentsDrawer } from "../components/CommentsDrawer";
 import { ReelItem } from "../components/ReelItem";
 import { ReportDialog, type ReportTarget } from "../components/ReportDialog";
@@ -12,18 +12,20 @@ import type {
   Comment,
   FeedMode,
   FeedVideo,
+  LikesCursor,
   PopularityCursor,
   RankedVideo,
   TimeFeedResponse,
 } from "../types/api";
 import { normalizeVideo, videoAuthor } from "../utils/video";
 
-const modes: FeedMode[] = ["recommend", "latest", "following", "popularity"];
+const modes: FeedMode[] = ["recommend", "latest", "following", "popularity", "likes"];
 const PAGE_SIZE = 8;
 
 type FeedCursorState = {
   beforeTime: number;
   popularityCursor?: PopularityCursor;
+  likesCursor?: LikesCursor;
   recommendCursor: string;
 };
 
@@ -34,7 +36,9 @@ const initialCursor: FeedCursorState = {
 
 export function VideoFeedPage() {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const mode = modes.includes(params.mode as FeedMode) ? (params.mode as FeedMode) : "recommend";
+  const sharedVideoID = Number(searchParams.get("video_id") || 0);
   const [videos, setVideos] = useState<FeedVideo[]>([]);
   const [cursor, setCursor] = useState<FeedCursorState>(initialCursor);
   const [hasMore, setHasMore] = useState(false);
@@ -54,6 +58,7 @@ export function VideoFeedPage() {
     if (mode === "recommend") return "推荐";
     if (mode === "latest") return "最新";
     if (mode === "following") return "关注";
+    if (mode === "likes") return "点赞榜";
     return "热榜";
   }, [mode]);
 
@@ -95,7 +100,7 @@ export function VideoFeedPage() {
           return normalizeVideo({
             id: item.video_id,
             title: `推荐视频 #${item.video_id}`,
-            description: item.reasons?.join(" · ") || "后端推荐接口返回了候选视频，但详情接口未返回完整数据。",
+            description: "这条推荐视频暂时缺少完整详情。",
             play_url: "",
             cover_url: "",
             likes_count: 0,
@@ -113,6 +118,25 @@ export function VideoFeedPage() {
     [hydrateInteractiveState],
   );
 
+  const prioritizeSharedVideo = useCallback(
+    async (items: FeedVideo[]) => {
+      if (!sharedVideoID) return items;
+      const existing = items.find((item) => item.id === sharedVideoID);
+      if (existing) {
+        return [existing, ...items.filter((item) => item.id !== sharedVideoID)];
+      }
+      try {
+        const detail = normalizeVideo(await pulsefeedApi.getVideoDetail(sharedVideoID));
+        const [hydrated] = await hydrateInteractiveState([detail]);
+        return [hydrated, ...items.filter((item) => item.id !== sharedVideoID)];
+      } catch {
+        pushToast("分享视频加载失败", "error");
+        return items;
+      }
+    },
+    [hydrateInteractiveState, pushToast, sharedVideoID],
+  );
+
   const fetchFeed = useCallback(
     async (append: boolean) => {
       if (loadingRef.current) return;
@@ -127,7 +151,7 @@ export function VideoFeedPage() {
         let more = false;
 
         if (mode === "recommend") {
-          const response = await pulsefeedApi.recommend(PAGE_SIZE, append ? activeCursor.recommendCursor : "", true);
+          const response = await pulsefeedApi.recommend(PAGE_SIZE, append ? activeCursor.recommendCursor : "");
           nextVideos = await hydrateRecommendations(response.videos || []);
           nextCursor = { ...initialCursor, recommendCursor: response.next_cursor || "" };
           more = Boolean(response.has_more);
@@ -141,6 +165,11 @@ export function VideoFeedPage() {
           nextVideos = await hydrateInteractiveState((response.video_list || []).map(normalizeVideo));
           nextCursor = { ...initialCursor, beforeTime: response.next_before_time || 0 };
           more = Boolean(response.has_more);
+        } else if (mode === "likes") {
+          const response = await pulsefeedApi.listLikes(PAGE_SIZE, append ? activeCursor.likesCursor : undefined);
+          nextVideos = await hydrateInteractiveState((response.video_list || []).map(normalizeVideo));
+          nextCursor = { ...initialCursor, likesCursor: response.next_cursor };
+          more = Boolean(response.has_more);
         } else {
           const response = await pulsefeedApi.listPopularity(PAGE_SIZE, append ? activeCursor.popularityCursor : undefined);
           nextVideos = await hydrateInteractiveState((response.video_list || []).map(normalizeVideo));
@@ -148,10 +177,12 @@ export function VideoFeedPage() {
           more = Boolean(response.has_more);
         }
 
-        setVideos((items) => (append ? [...items, ...nextVideos] : nextVideos));
+        const visibleVideos = append ? nextVideos : await prioritizeSharedVideo(nextVideos);
+
+        setVideos((items) => (append ? [...items, ...visibleVideos] : visibleVideos));
         setFollowedAuthors((items) => {
           const next = append ? new Set(items) : new Set<number>();
-          for (const video of nextVideos) {
+          for (const video of visibleVideos) {
             const author = videoAuthor(video);
             if (author.id && video.is_following) {
               next.add(author.id);
@@ -169,7 +200,7 @@ export function VideoFeedPage() {
         setLoading(false);
       }
     },
-    [hydrateInteractiveState, hydrateRecommendations, label, mode, pushToast, requireAuth],
+    [hydrateInteractiveState, hydrateRecommendations, label, mode, prioritizeSharedVideo, pushToast, requireAuth],
   );
 
   useEffect(() => {
@@ -179,7 +210,7 @@ export function VideoFeedPage() {
     setHasMore(false);
     scrollRef.current?.scrollTo({ top: 0 });
     fetchFeed(false);
-  }, [fetchFeed, mode, session?.token]);
+  }, [fetchFeed, mode, session?.token, sharedVideoID]);
 
   async function toggleLike(video: FeedVideo) {
     if (!requireAuth("登录后才能点赞")) return;
@@ -245,7 +276,6 @@ export function VideoFeedPage() {
   }
 
   function openComments(video: FeedVideo) {
-    if (!requireAuth("登录后才能查看和发布评论")) return;
     setSelectedVideo(video);
   }
 
@@ -279,7 +309,7 @@ export function VideoFeedPage() {
   return (
     <main className="relative h-[100svh] overflow-hidden bg-black">
       <TopStatusBar mode={mode} loading={loading} onRefresh={() => fetchFeed(false)} />
-      <div ref={scrollRef} className="h-full snap-y snap-mandatory overflow-y-auto" onScroll={handleScroll}>
+      <div ref={scrollRef} className="h-full snap-y snap-mandatory overflow-y-auto scrollbar-hide" onScroll={handleScroll}>
         {videos.map((video) => {
           const author = videoAuthor(video);
           return (

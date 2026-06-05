@@ -90,7 +90,7 @@ func (w *CommentWorker) handleDelivery(ctx context.Context, d amqp.Delivery) {
 func (w *CommentWorker) process(ctx context.Context, body []byte) error {
 	var evt rabbitmq.CommentEvent
 	if err := json.Unmarshal(body, &evt); err != nil {
-		log.Printf("like worker: invalid json: %v", err)
+		log.Printf("comment worker: invalid json: %v", err)
 		// 解析事件失败，直接丢弃
 		return nil
 	}

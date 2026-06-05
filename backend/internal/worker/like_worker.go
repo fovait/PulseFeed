@@ -78,7 +78,7 @@ func (w *LikeWorker) handleDelivery(ctx context.Context, d amqp.Delivery) {
 			}
 			wait := time.Duration(1<<uint(i)) * time.Second
 			log.Printf("like worker: 处理失败, %v 后重试 (%d/%d): %v", wait, i+1, maxRetries, err)
-			time.Sleep(wait)
+			sleepOrDone(ctx, wait)
 			continue
 		}
 		_ = d.Ack(false)

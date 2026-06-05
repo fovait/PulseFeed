@@ -25,3 +25,19 @@ export function saveSession(session: Session | null) {
 export function readToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY) || readSession()?.token || "";
 }
+
+export function readRefreshToken(): string {
+  return readSession()?.refresh_token || "";
+}
+
+/** refresh 成功后用新 access token 更新本地 session，其余字段不变 */
+export function updateStoredToken(token: string, accountID?: number, username?: string) {
+  const session = readSession();
+  if (!session) return;
+  saveSession({
+    ...session,
+    token,
+    ...(accountID ? { account_id: accountID } : {}),
+    ...(username ? { username } : {}),
+  });
+}

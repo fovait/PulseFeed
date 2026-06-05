@@ -4,7 +4,7 @@ import "time"
 
 type Comment struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	Username  string    `gorm:"unique;not null" json:"username"`
+	Username  string    `gorm:"not null" json:"username"`
 	VideoID   uint      `gorm:"index" json:"video_id" binding:"required,min=1"`
 	AuthorID  uint      `gorm:"index" json:"author_id"`
 	Content   string    `gorm:"type:text" json:"content" binding:"required,min=1,max=500"`

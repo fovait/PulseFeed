@@ -1,4 +1,4 @@
-import { MessageCircle, Send, UserPlus } from "lucide-react";
+import { MessageCircle, Pause, Play, Send, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ActionRail } from "./ActionRail";
 import type { FeedVideo } from "../types/api";
@@ -34,7 +34,37 @@ export function ReelItem({
   const rootRef = useRef<HTMLElement | null>(null);
   const [muted, setMuted] = useState(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [active, setActive] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const author = videoAuthor(video);
+
+  function togglePause() {
+    const player = videoRef.current;
+    if (!player) return;
+    if (player.paused) {
+      player.play().catch(() => {});
+    } else {
+      player.pause();
+    }
+  }
+
+  function toggleMute() {
+    const player = videoRef.current;
+    const next = !muted;
+    if (player) {
+      player.muted = next;
+    }
+    setMuted(next);
+  }
+
+  function seek(nextTime: number) {
+    const player = videoRef.current;
+    if (!player || !Number.isFinite(nextTime)) return;
+    player.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  }
 
   useEffect(() => {
     const root = rootRef.current;
@@ -44,6 +74,7 @@ export function ReelItem({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && entry.intersectionRatio > 0.66) {
+          setActive(true);
           onVisible();
           const attempt = player.play();
           if (attempt) {
@@ -58,6 +89,7 @@ export function ReelItem({
               });
           }
         } else {
+          setActive(false);
           player.pause();
         }
       },
@@ -68,6 +100,32 @@ export function ReelItem({
     return () => observer.disconnect();
   }, [onVisible, video.play_url]);
 
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+    setPaused(false);
+    setPlaybackBlocked(false);
+  }, [video.play_url]);
+
+  useEffect(() => {
+    if (!active || !video.play_url) return undefined;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        togglePause();
+      }
+      if (event.key.toLowerCase() === "m") {
+        toggleMute();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [active, muted, video.play_url]);
+
   return (
     <article ref={rootRef} className="relative min-h-[100svh] snap-start overflow-hidden bg-black">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(180deg,#050505_0%,#000_55%,#050505_100%)]" />
@@ -76,18 +134,62 @@ export function ReelItem({
         <div className="flex w-full max-w-[1180px] items-end justify-center gap-4 md:gap-5">
           <div className="relative h-[calc(100svh-10rem)] min-h-[360px] w-full max-w-[430px] overflow-hidden rounded-lg bg-black shadow-2xl md:aspect-[9/16] md:h-[calc(100svh-7rem)] md:max-h-[860px] md:min-h-[560px] md:w-auto md:max-w-[520px]">
             {video.play_url ? (
-              <video
-                ref={videoRef}
-                className="absolute inset-0 h-full w-full bg-black object-contain"
-                src={video.play_url}
-                poster={video.cover_url}
-                loop={false}
-                playsInline
-                muted={muted}
-                preload="metadata"
-                onPlay={onPlayStart}
-                onEnded={onComplete}
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 h-full w-full bg-black object-contain"
+                  src={video.play_url}
+                  poster={video.cover_url}
+                  loop={false}
+                  playsInline
+                  muted={muted}
+                  preload="metadata"
+                  onPlay={() => { setPaused(false); onPlayStart(); }}
+                  onPause={() => setPaused(true)}
+                  onEnded={() => { setPaused(true); onComplete(); }}
+                  onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+                  onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime || 0)}
+                  onClick={togglePause}
+                />
+                {paused && (
+                  <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                    <div className="rounded-full bg-black/50 p-4">
+                      <Play className="h-10 w-10 fill-white text-white" />
+                    </div>
+                  </div>
+                )}
+                <div className="absolute right-3 top-3 z-30 flex gap-2">
+                  <button
+                    type="button"
+                    className="grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-md transition hover:bg-white/14"
+                    onClick={toggleMute}
+                    aria-label={muted ? "取消静音" : "静音"}
+                  >
+                    {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    className="grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-md transition hover:bg-white/14"
+                    onClick={togglePause}
+                    aria-label={paused ? "播放" : "暂停"}
+                  >
+                    {paused ? <Play className="h-5 w-5 fill-white" /> : <Pause className="h-5 w-5 fill-white" />}
+                  </button>
+                </div>
+                <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-2">
+                  <input
+                    className="h-1 w-full cursor-pointer accent-pulse-cyan"
+                    type="range"
+                    min={0}
+                    max={duration || 0}
+                    step={0.1}
+                    value={duration ? Math.min(currentTime, duration) : 0}
+                    onChange={(event) => seek(Number(event.target.value))}
+                    disabled={!duration}
+                    aria-label="视频进度"
+                  />
+                </div>
+              </>
             ) : (
               <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-zinc-900 via-black to-zinc-950">
                 <div className="px-10 text-center">
@@ -203,18 +305,7 @@ function VideoInfo({
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-white/52">
         <span>{formatRelativeTime(video.create_time || video.created_at)}</span>
-        {video.recommendation ? (
-          <>
-            <span>score {video.recommendation.score.toFixed(2)}</span>
-            <span>{video.recommendation.source}</span>
-          </>
-        ) : null}
       </div>
-      {video.recommendation?.reasons?.length ? (
-        <p className="mt-2 line-clamp-2 text-xs text-cyan-100/72">
-          {video.recommendation.reasons.join(" · ")}
-        </p>
-      ) : null}
     </div>
   );
 }

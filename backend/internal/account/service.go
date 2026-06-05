@@ -61,8 +61,8 @@ func (as *AccountService) Rename(ctx context.Context, accountID uint, newUsernam
 		return "", err
 	}
 
-	key := as.cache.Key("account:%d", accountID)
 	if as.cache != nil {
+		key := as.cache.Key("account:%d", accountID)
 		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 		defer cancel()
 
@@ -197,15 +197,12 @@ func (as *AccountService) FindAll(ctx context.Context) ([]*Account, error) {
 }
 
 func (as *AccountService) UpdateProfile(ctx context.Context, accountID uint, req *UpdateProfileRequest) error {
-	updates := map[string]interface{}{}
-	if req.Bio != "" {
-		updates["bio"] = strings.TrimSpace(req.Bio)
+	if req == nil {
+		return errors.New("profile request is nil")
 	}
-	if req.AvatarURL != "" {
-		updates["avatar_url"] = strings.TrimSpace(req.AvatarURL)
-	}
-	if len(updates) == 0 {
-		return errors.New("nothing to update")
+	updates := map[string]interface{}{
+		"bio":        strings.TrimSpace(req.Bio),
+		"avatar_url": strings.TrimSpace(req.AvatarURL),
 	}
 	return as.accountRepository.UpdateFields(ctx, accountID, updates)
 }
@@ -243,23 +240,17 @@ func (as *AccountService) RefreshAccessToken(ctx context.Context, refreshToken s
 		}
 	}
 
-	accounts, err := as.FindAll(ctx)
+	acc, err := as.accountRepository.FindByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return "", 0, "", errors.New("invalid refresh token")
+	}
 
+	newToken, err := auth.GenerateToken(acc.ID, acc.Username)
 	if err != nil {
 		return "", 0, "", err
 	}
-
-	for _, acc := range accounts {
-		if acc.RefreshToken == refreshToken {
-			newToken, err := auth.GenerateToken(acc.ID, acc.Username)
-			if err != nil {
-				return "", 0, "", err
-			}
-			if err := as.accountRepository.UpdateToken(ctx, acc.ID, newToken); err != nil {
-				return "", 0, "", err
-			}
-			return newToken, acc.ID, acc.Username, nil
-		}
+	if err := as.accountRepository.UpdateToken(ctx, acc.ID, newToken); err != nil {
+		return "", 0, "", err
 	}
-	return "", 0, "", errors.New("invalid refresh token")
+	return newToken, acc.ID, acc.Username, nil
 }

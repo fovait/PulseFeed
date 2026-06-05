@@ -179,4 +179,4 @@ export type ReportResponse = {
 
 export type EventType = "impression" | "view" | "play_complete" | "share";
 
-export type FeedMode = "recommend" | "latest" | "following" | "popularity";
+export type FeedMode = "recommend" | "latest" | "following" | "popularity" | "likes";

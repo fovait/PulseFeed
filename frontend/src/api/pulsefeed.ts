@@ -39,6 +39,29 @@ export const pulsefeedApi = {
     });
   },
 
+  rename(newUsername: string) {
+    return apiClient.request<{ token: string }>("/account/rename", {
+      body: { new_username: newUsername },
+    });
+  },
+
+  changePassword(username: string, oldPassword: string, newPassword: string) {
+    return apiClient.request<{ message: string }>("/account/changePassword", {
+      auth: false,
+      body: { username, old_password: oldPassword, new_password: newPassword },
+    });
+  },
+
+  updateProfile(payload: { avatar_url: string; bio: string }) {
+    return apiClient.request<{ message: string }>("/account/updateProfile", {
+      body: payload,
+    });
+  },
+
+  uploadAvatar(formData: FormData) {
+    return apiClient.upload<{ avatar_url: string }>("/account/uploadAvatar", formData);
+  },
+
   getProfile(accountID: number) {
     return apiClient.request<ProfileResponse>("/account/getProfile", {
       auth: false,
@@ -50,6 +73,13 @@ export const pulsefeedApi = {
     return apiClient.request<Account>("/account/findByID", {
       auth: false,
       body: { id },
+    });
+  },
+
+  findAccountByUsername(username: string) {
+    return apiClient.request<Account>("/account/findByUsername", {
+      auth: false,
+      body: { username },
     });
   },
 
@@ -77,7 +107,7 @@ export const pulsefeedApi = {
     });
   },
 
-  recommend(limit: number, cursor = "", debug = true) {
+  recommend(limit: number, cursor = "", debug = false) {
     return apiClient.request<RecommendResponse>("/feed/recommend", {
       body: { limit, cursor, debug },
     });
@@ -233,6 +263,17 @@ export const pulsefeedApi = {
   report(targetType: "video" | "comment", targetID: number, reason: string) {
     return apiClient.request<ReportResponse>("/moderation/report", {
       body: { target_type: targetType, target_id: targetID, reason },
+    });
+  },
+
+  logout() {
+    return apiClient.request<{ message: string }>("/account/logout", {});
+  },
+
+  refreshToken(refreshToken: string) {
+    return apiClient.request<Session>("/account/refresh", {
+      auth: false,
+      body: { refresh_token: refreshToken },
     });
   },
 

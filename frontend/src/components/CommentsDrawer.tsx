@@ -67,8 +67,22 @@ export function CommentsDrawer({
     setSubmitting(true);
     try {
       await pulsefeedApi.publishComment(video.id, text);
+
+      // 乐观更新：用当前 comments 快照构建新列表，分两步更新 state 和 count
+      // 不能把 onCountChange 放进 setComments updater —— React Strict Mode 会把 updater 调用两次
+      // 也不能立即 refresh() —— MQ 异步，服务端尚未落库，刷回来的旧数据会覆盖乐观结果
+      const optimistic: Comment = {
+        id: Date.now(),
+        video_id: video.id,
+        author_id: session?.account_id ?? 0,
+        username: session?.username ?? "",
+        content: text,
+        created_at: new Date().toISOString(),
+      };
+      const nextComments = [...comments, optimistic];
+      setComments(nextComments);
+      onCountChange(video.id, nextComments.length);
       setContent("");
-      await refresh();
       pushToast("评论已发布", "success");
     } catch (error) {
       pushToast(error instanceof Error ? error.message : "评论发布失败", "error");
@@ -94,18 +108,18 @@ export function CommentsDrawer({
   }
 
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-h-[76svh] w-full max-w-[430px] overflow-hidden rounded-t-lg border border-white/12 bg-zinc-950/90 shadow-glow backdrop-blur-2xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <aside className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex max-h-[76svh] w-full max-w-[430px] flex-col overflow-hidden rounded-t-lg border border-white/12 bg-zinc-950/94 shadow-glow backdrop-blur-2xl md:inset-y-0 md:left-auto md:right-0 md:h-[100svh] md:max-h-none md:w-[min(420px,34vw)] md:max-w-none md:rounded-none md:border-y-0 md:border-l md:border-r-0">
+      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3 md:px-5 md:py-4">
         <div>
-          <h2 className="text-base font-black">评论</h2>
-          <p className="max-w-[300px] truncate text-xs text-white/52">{video.title}</p>
+          <h2 className="text-base font-black md:text-lg">评论 {comments.length ? comments.length : ""}</h2>
+          <p className="max-w-[300px] truncate text-xs text-white/52 md:max-w-[320px]">{video.title}</p>
         </div>
         <button type="button" className="rounded-lg p-2 text-white/70 hover:bg-white/10" onClick={onClose}>
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="max-h-[46svh] space-y-3 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto scrollbar-hide px-4 py-4 md:px-5">
         {loading ? <p className="text-sm text-white/58">正在加载评论...</p> : null}
         {!loading && comments.length === 0 ? <p className="text-sm text-white/58">还没有评论</p> : null}
         {comments.map((comment) => (
@@ -139,7 +153,7 @@ export function CommentsDrawer({
         ))}
       </div>
 
-      <form className="border-t border-white/10 p-3" onSubmit={submit}>
+      <form className="shrink-0 border-t border-white/10 p-3 md:p-4" onSubmit={submit}>
         <div className="flex items-end gap-2">
           <textarea
             className="control-field min-h-12 resize-none text-sm"

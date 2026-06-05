@@ -25,6 +25,7 @@ type AuthContextValue = {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateSession: (updater: (session: Session) => Session) => void;
   setAuthMode: (mode: AuthMode) => void;
 };
 
@@ -81,9 +82,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    // 先调后端作废 token，失败也继续清本地（保证用户能退出）
+    pulsefeedApi.logout().catch(() => undefined);
     persistSession(null);
     pushToast("已退出登录");
   }, [persistSession, pushToast]);
+
+  const updateSession = useCallback(
+    (updater: (session: Session) => Session) => {
+      setSession((current) => {
+        if (!current) return current;
+        const next = updater(current);
+        saveSession(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     const onExpired = () => {
@@ -107,9 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      updateSession,
       setAuthMode,
     }),
-    [authMode, authOpen, authReason, closeAuth, login, logout, openAuth, register, requireAuth, session],
+    [authMode, authOpen, authReason, closeAuth, login, logout, openAuth, register, requireAuth, session, updateSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

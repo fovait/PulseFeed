@@ -6,6 +6,7 @@ const labels: Record<FeedMode, string> = {
   latest: "最新",
   following: "关注",
   popularity: "热榜",
+  likes: "点赞榜",
 };
 
 export function TopStatusBar({
