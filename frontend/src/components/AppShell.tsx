@@ -11,7 +11,13 @@ export function AppShell() {
   const usesWideShell =
     location.pathname.startsWith("/feed") ||
     location.pathname.startsWith("/messages") ||
+    location.pathname.startsWith("/notifications") ||
     location.pathname.startsWith("/profile") ||
+    location.pathname.startsWith("/user") ||
+    location.pathname.startsWith("/video") ||
+    location.pathname.startsWith("/tag") ||
+    location.pathname.startsWith("/search") ||
+    location.pathname.startsWith("/admin") ||
     location.pathname.startsWith("/publish");
 
   return (
@@ -24,7 +30,11 @@ export function AppShell() {
         }
       >
         <Outlet />
-        <BottomNav wide={usesWideShell} messageUnread={unread.totalUnread} />
+        <BottomNav
+          wide={usesWideShell}
+          messageUnread={unread.messageUnread}
+          notificationUnread={unread.notificationUnread}
+        />
         <AuthModal />
       </div>
     </div>

@@ -63,3 +63,16 @@ type ReviewRequest struct {
 type ReportResponse struct {
 	Report *ContentReport `json:"report"`
 }
+
+type ListReportsRequest struct {
+	Status AuditStatus `json:"status"`
+	Limit  int         `json:"limit" binding:"omitempty,min=1,max=200"`
+}
+
+type ListReportsResponse struct {
+	Reports []ContentReport `json:"reports"`
+}
+
+type IsAdminResponse struct {
+	IsAdmin bool `json:"is_admin"`
+}

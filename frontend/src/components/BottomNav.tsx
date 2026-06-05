@@ -1,4 +1,4 @@
-import { Flame, Heart, Home, MessageCircle, Radio, UserRound, UsersRound } from "lucide-react";
+import { Bell, Flame, Heart, Home, MessageCircle, Radio, UserRound, UsersRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import type { ComponentType } from "react";
 
@@ -15,21 +15,30 @@ const items: NavItem[] = [
   { to: "/feed/popularity", label: "热榜", icon: Flame },
   { to: "/feed/likes", label: "点赞榜", icon: Heart },
   { to: "/messages", label: "消息", icon: MessageCircle },
+  { to: "/notifications", label: "通知", icon: Bell },
   { to: "/profile", label: "我的", icon: UserRound },
 ];
 
-export function BottomNav({ wide = false, messageUnread = 0 }: { wide?: boolean; messageUnread?: number }) {
+export function BottomNav({
+  wide = false,
+  messageUnread = 0,
+  notificationUnread = 0,
+}: {
+  wide?: boolean;
+  messageUnread?: number;
+  notificationUnread?: number;
+}) {
   const navClassName = wide
     ? "fixed inset-x-0 bottom-0 z-40 w-full border-t border-white/10 bg-black/82 px-2 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:inset-x-auto md:inset-y-0 md:left-0 md:flex md:w-24 md:flex-col md:border-r md:border-t-0 md:px-3 md:py-5"
     : "fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[430px] border-t border-white/10 bg-black/78 px-2 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl";
-  const listClassName = wide ? "grid grid-cols-7 gap-1 md:flex md:flex-1 md:flex-col md:gap-2" : "grid grid-cols-7 gap-1";
+  const listClassName = wide ? "grid grid-cols-8 gap-1 md:flex md:flex-1 md:flex-col md:gap-2" : "grid grid-cols-8 gap-1";
 
   return (
     <nav className={navClassName}>
       {wide ? <div className="mb-5 hidden px-2 text-lg font-black md:block">Pulse</div> : null}
       <div className={listClassName}>
         {items.map(({ to, label, icon: Icon }) => {
-          const unread = label === "消息" ? messageUnread : 0;
+          const unread = label === "消息" ? messageUnread : label === "通知" ? notificationUnread : 0;
           return (
             <NavLink
               key={to}

@@ -1,7 +1,9 @@
 import { MessageCircle, Pause, Play, Send, UserPlus, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ActionRail } from "./ActionRail";
 import type { FeedVideo } from "../types/api";
+import { renderWithTags } from "../utils/tags";
 import { formatRelativeTime } from "../utils/time";
 import { videoAuthor } from "../utils/video";
 
@@ -294,18 +296,46 @@ function VideoInfo({
           评论
         </button>
       </div>
-      <p className="text-sm font-bold text-white/86">@{author.username}</p>
+      {author.id ? (
+        <Link to={`/user/${author.id}`} className="text-sm font-bold text-white/86 hover:text-pulse-cyan">
+          @{author.username}
+        </Link>
+      ) : (
+        <p className="text-sm font-bold text-white/86">@{author.username}</p>
+      )}
       <h2 className={["mt-1 line-clamp-2 font-black leading-tight", compact ? "text-2xl" : "text-3xl"].join(" ")}>
-        {video.title || `视频 #${video.id}`}
+        {video.title ? renderWithTags(video.title) : `视频 #${video.id}`}
       </h2>
       {video.description ? (
         <p className={["mt-2 text-sm leading-6 text-white/78", compact ? "line-clamp-2" : "line-clamp-4"].join(" ")}>
-          {video.description}
+          {renderWithTags(video.description)}
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-white/52">
         <span>{formatRelativeTime(video.create_time || video.created_at)}</span>
+        {video.recommendation?.source ? (
+          <span className="rounded-lg bg-pulse-cyan/15 px-2 py-0.5 text-[0.65rem] text-pulse-cyan">
+            {recommendationSourceLabel(video.recommendation.source)}
+          </span>
+        ) : null}
+        {video.recommendation?.reasons?.slice(0, 3).map((reason, i) => (
+          <span key={`${reason}-${i}`} className="rounded-lg bg-white/[0.06] px-2 py-0.5 text-[0.65rem] text-white/70">
+            {reason}
+          </span>
+        ))}
       </div>
     </div>
   );
+}
+
+function recommendationSourceLabel(source: string): string {
+  switch (source) {
+    case "latest": return "最新";
+    case "popularity": return "热门";
+    case "following": return "关注作者";
+    case "tag_interest": return "兴趣标签";
+    case "likes": return "高赞";
+    case "mixed": return "综合推荐";
+    default: return source;
+  }
 }

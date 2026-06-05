@@ -1,11 +1,11 @@
-import { ImagePlus, LogOut, Plus, Save, UserRound } from "lucide-react";
+import { ImagePlus, LogOut, Plus, Save, ShieldAlert, Trash2, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE_URL } from "../api/client";
 import { pulsefeedApi } from "../api/pulsefeed";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import type { ProfileResponse } from "../types/api";
+import type { FeedVideo, ProfileResponse } from "../types/api";
 
 export function ProfilePage() {
   const { session, logout, openAuth, updateSession } = useAuth();
@@ -19,16 +19,71 @@ export function ProfilePage() {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [myVideos, setMyVideos] = useState<FeedVideo[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [deletingID, setDeletingID] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"posts" | "likes">("posts");
+  const [likedVideos, setLikedVideos] = useState<FeedVideo[]>([]);
+  const [likedLoading, setLikedLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const savedAvatarUrl = useMemo(() => profile?.account.avatar_url || "", [profile]);
   const previewAvatarUrl = avatarUrl.trim() || savedAvatarUrl;
 
   useEffect(() => {
     if (!session?.account_id) {
       setProfile(null);
+      setMyVideos([]);
+      setLikedVideos([]);
       return;
     }
     pulsefeedApi.getProfile(session.account_id).then(setProfile).catch(() => setProfile(null));
+    refreshMyVideos();
+    refreshLikedVideos();
+    pulsefeedApi.isModerationAdmin().then((r) => setIsAdmin(r.is_admin)).catch(() => setIsAdmin(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.account_id]);
+
+  async function refreshMyVideos() {
+    if (!session?.account_id) return;
+    setVideosLoading(true);
+    try {
+      const vs = await pulsefeedApi.listVideosByAuthor(session.account_id);
+      setMyVideos(vs || []);
+    } catch {
+      setMyVideos([]);
+    } finally {
+      setVideosLoading(false);
+    }
+  }
+
+  async function refreshLikedVideos() {
+    if (!session?.token) return;
+    setLikedLoading(true);
+    try {
+      const vs = await pulsefeedApi.listMyLikedVideos();
+      setLikedVideos(vs || []);
+    } catch {
+      setLikedVideos([]);
+    } finally {
+      setLikedLoading(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!session?.token) return;
+    if (!window.confirm("确定要删除这个视频吗？")) return;
+    setDeletingID(id);
+    try {
+      await pulsefeedApi.deleteVideo(id);
+      setMyVideos((items) => items.filter((v) => v.id !== id));
+      pushToast("视频已删除", "success");
+      refreshProfile().catch(() => undefined);
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : "删除失败", "error");
+    } finally {
+      setDeletingID(null);
+    }
+  }
 
   useEffect(() => {
     setUsername(session?.username || "");
@@ -157,8 +212,14 @@ export function ProfilePage() {
               <div className="mt-6 grid grid-cols-2 gap-3 text-center md:grid-cols-4">
                 <Stat label="视频" value={profile?.video_count} />
                 <Stat label="获赞" value={profile?.total_likes} />
-                <Stat label="粉丝" value={profile?.follower_count} />
-                <Stat label="关注" value={profile?.vlogger_count} />
+                <Link to={`/user/${session.account_id}/followers`} className="block rounded-lg bg-white/[0.06] px-2 py-4 transition hover:bg-white/[0.1]">
+                  <p className="text-2xl font-black md:text-3xl">{profile?.follower_count ?? "-"}</p>
+                  <p className="mt-1 text-xs text-white/42">粉丝</p>
+                </Link>
+                <Link to={`/user/${session.account_id}/following`} className="block rounded-lg bg-white/[0.06] px-2 py-4 transition hover:bg-white/[0.1]">
+                  <p className="text-2xl font-black md:text-3xl">{profile?.vlogger_count ?? "-"}</p>
+                  <p className="mt-1 text-xs text-white/42">关注</p>
+                </Link>
               </div>
 
               <form className="mt-6 grid gap-4" onSubmit={saveProfile}>
@@ -191,6 +252,100 @@ export function ProfilePage() {
                   </button>
                 </div>
               </form>
+
+              <div className="mt-8">
+                <div className="mb-3 flex items-center justify-between border-b border-white/10">
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setActiveTab("posts")}
+                      className={[
+                        "px-3 py-2 text-sm font-bold transition",
+                        activeTab === "posts" ? "border-b-2 border-pulse-cyan text-white" : "text-white/52 hover:text-white",
+                      ].join(" ")}
+                    >
+                      我的发布 ({myVideos.length})
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("likes")}
+                      className={[
+                        "px-3 py-2 text-sm font-bold transition",
+                        activeTab === "likes" ? "border-b-2 border-pulse-cyan text-white" : "text-white/52 hover:text-white",
+                      ].join(" ")}
+                    >
+                      我的点赞 ({likedVideos.length})
+                    </button>
+                  </div>
+                  <button
+                    className="text-xs text-white/52 hover:text-white"
+                    onClick={() => (activeTab === "posts" ? refreshMyVideos() : refreshLikedVideos())}
+                    disabled={activeTab === "posts" ? videosLoading : likedLoading}
+                  >
+                    {(activeTab === "posts" ? videosLoading : likedLoading) ? "加载中..." : "刷新"}
+                  </button>
+                </div>
+
+                {activeTab === "posts" ? (
+                  videosLoading && myVideos.length === 0 ? (
+                    <p className="mt-3 text-sm text-white/52">加载中...</p>
+                  ) : myVideos.length === 0 ? (
+                    <div className="mt-3 rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-white/52">
+                      还没有发布过视频，去
+                      <Link to="/publish" className="ml-1 text-pulse-cyan underline">
+                        发布一个
+                      </Link>
+                      吧
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {myVideos.map((v) => (
+                        <div key={v.id} className="group relative overflow-hidden rounded-lg bg-white/[0.06]">
+                          <Link to={`/video/${v.id}`} className="block">
+                            <div className="aspect-[3/4] bg-black">
+                              {v.cover_url ? (
+                                <img src={v.cover_url} alt={v.title} className="h-full w-full object-cover transition group-hover:scale-105" />
+                              ) : null}
+                            </div>
+                            <div className="p-2">
+                              <p className="line-clamp-2 text-xs font-semibold">{v.title}</p>
+                              <p className="mt-1 text-[0.65rem] text-white/52">♥ {v.likes_count} · 💬 {v.comments_count}</p>
+                            </div>
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(v.id)}
+                            disabled={deletingID === v.id}
+                            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg bg-black/70 text-white opacity-0 transition group-hover:opacity-100 hover:bg-pulse-red disabled:opacity-50"
+                            title="删除视频"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : likedLoading && likedVideos.length === 0 ? (
+                  <p className="mt-3 text-sm text-white/52">加载中...</p>
+                ) : likedVideos.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-white/10 p-6 text-center text-sm text-white/52">
+                    你还没有点赞过视频
+                  </div>
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {likedVideos.map((v) => (
+                      <Link key={v.id} to={`/video/${v.id}`} className="group block overflow-hidden rounded-lg bg-white/[0.06]">
+                        <div className="aspect-[3/4] bg-black">
+                          {v.cover_url ? (
+                            <img src={v.cover_url} alt={v.title} className="h-full w-full object-cover transition group-hover:scale-105" />
+                          ) : null}
+                        </div>
+                        <div className="p-2">
+                          <p className="line-clamp-2 text-xs font-semibold">{v.title}</p>
+                          <p className="mt-1 text-[0.65rem] text-white/52">@{v.username || v.author?.username || "-"} · ♥ {v.likes_count}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
 
             <aside className="space-y-4">
@@ -201,6 +356,12 @@ export function ProfilePage() {
                     <Plus className="h-4 w-4" />
                     发布视频
                   </Link>
+                  {isAdmin ? (
+                    <Link className="ghost-button flex items-center justify-center gap-2 border-pulse-cyan/40 text-pulse-cyan" to="/admin/moderation">
+                      <ShieldAlert className="h-4 w-4" />
+                      审核后台
+                    </Link>
+                  ) : null}
                   <button className="ghost-button flex items-center justify-center gap-2" onClick={logout}>
                     <LogOut className="h-4 w-4" />
                     退出登录

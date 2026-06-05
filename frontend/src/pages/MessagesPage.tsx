@@ -1,9 +1,8 @@
-import { Bell, CheckCheck, MessageCircle, Search, SendHorizonal } from "lucide-react";
+import { MessageCircle, Search, SendHorizonal } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pulsefeedApi } from "../api/pulsefeed";
 import { useAuth } from "../hooks/useAuth";
-import { useNotifications } from "../hooks/useNotifications";
 import { useToast } from "../hooks/useToast";
 import { requestUnreadRefresh } from "../hooks/useUnreadSummary";
 import type { Account, Message, MessageConversation } from "../types/api";
@@ -26,7 +25,6 @@ export function MessagesPage() {
   const [searchingPeer, setSearchingPeer] = useState(false);
   const { session, requireAuth, openAuth } = useAuth();
   const { pushToast } = useToast();
-  const notifications = useNotifications(session);
 
   useEffect(() => {
     if (!session?.token) {
@@ -190,11 +188,6 @@ export function MessagesPage() {
     }
   }
 
-  async function markNotificationsRead(id?: number) {
-    await notifications.markRead(id);
-    requestUnreadRefresh();
-  }
-
   const activeConversation = conversations.find((conversation) => conversation.peer_id === activePeerID);
   const activePeerLabel = activePeerID
     ? `@${activeConversation?.peer_username || (searchedPeer?.id === activePeerID ? searchedPeer.username : `peer ${activePeerID}`)}`
@@ -206,7 +199,7 @@ export function MessagesPage() {
         <header className="mb-5 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-black md:text-3xl">消息</h1>
-            <p className="mt-1 text-sm text-white/52">通知和私信</p>
+            <p className="mt-1 text-sm text-white/52">私信会话</p>
           </div>
           {!session?.token ? (
             <button className="primary-button" onClick={() => openAuth("登录后查看消息")}>
@@ -217,42 +210,7 @@ export function MessagesPage() {
 
         <div className="grid gap-4 md:min-h-0 md:flex-1 lg:grid-cols-[360px_minmax(0,1fr)]">
           <section className="glass-panel flex min-h-[420px] flex-col rounded-lg p-4 md:min-h-0 lg:h-full">
-            <div className="border-b border-white/10 pb-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-pulse-cyan" />
-                  <h2 className="font-black">通知</h2>
-                  <span className="rounded-lg bg-pulse-red px-2 py-0.5 text-xs font-black">{notifications.unreadCount}</span>
-                </div>
-                <button className="ghost-button flex items-center gap-1" onClick={() => markNotificationsRead()}>
-                  <CheckCheck className="h-4 w-4" />
-                  全部已读
-                </button>
-              </div>
-              <div className="max-h-36 space-y-2 overflow-y-auto">
-                {notifications.notifications.length === 0 ? (
-                  <p className="text-sm text-white/52">暂无通知</p>
-                ) : (
-                  notifications.notifications.map((item) => (
-                    <button
-                      key={item.id}
-                      className="w-full rounded-lg bg-white/[0.06] p-3 text-left"
-                      onClick={() => markNotificationsRead(item.id)}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold">{item.content || item.type}</p>
-                        {!item.is_read ? <span className="h-2 w-2 rounded-full bg-pulse-red" /> : null}
-                      </div>
-                      <p className="mt-1 text-xs text-white/42">
-                        sender #{item.sender_id} · target #{item.target_id} · {formatRelativeTime(item.created_at)}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageCircle className="h-5 w-5 text-pulse-cyan" />

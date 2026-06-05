@@ -5,6 +5,7 @@ import { pulsefeedApi } from "../api/pulsefeed";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { uploadVideoInChunks, type UploadProgress } from "../utils/upload";
+import { captureVideoFrame } from "../utils/videoFrame";
 
 export function PublishPage() {
   const [title, setTitle] = useState("");
@@ -20,22 +21,50 @@ export function PublishPage() {
   const { pushToast } = useToast();
   const navigate = useNavigate();
   const canSubmit =
-    Boolean(title.trim()) && Boolean(playUrl.trim()) && Boolean(coverUrl.trim()) && !uploadingVideo && !uploadingCover && !submitting;
+    Boolean(title.trim()) && Boolean(playUrl.trim()) && !uploadingVideo && !uploadingCover && !submitting;
+
+  async function ensureCover(): Promise<string> {
+    if (coverUrl.trim()) return coverUrl.trim();
+    if (!playUrl.trim()) throw new Error("请先上传视频");
+    setUploadingCover(true);
+    try {
+      const blob = await captureVideoFrame(playUrl.trim());
+      const formData = new FormData();
+      formData.append("file", blob, "cover.jpg");
+      const response = await pulsefeedApi.uploadCoverFile(formData);
+      const next = response.cover_url || response.url;
+      setCoverUrl(next);
+      pushToast("已自动生成封面（首帧）", "success");
+      return next;
+    } finally {
+      setUploadingCover(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!requireAuth("登录后才能发布视频")) return;
-    if (!title.trim() || !playUrl.trim() || !coverUrl.trim()) {
-      pushToast("请先填写标题并上传视频和封面", "error");
+    if (!title.trim() || !playUrl.trim()) {
+      pushToast("请先填写标题并上传视频", "error");
       return;
     }
     setSubmitting(true);
     try {
+      let finalCover = coverUrl.trim();
+      if (!finalCover) {
+        try {
+          finalCover = await ensureCover();
+        } catch (err) {
+          pushToast(err instanceof Error ? err.message : "自动封面生成失败", "error");
+          setSubmitting(false);
+          return;
+        }
+      }
       await pulsefeedApi.publishVideo({
         title: title.trim(),
         description: description.trim(),
         play_url: playUrl.trim(),
-        cover_url: coverUrl.trim(),
+        cover_url: finalCover,
       });
       pushToast("视频已发布", "success");
       navigate("/feed/latest");
@@ -118,10 +147,19 @@ export function PublishPage() {
                 </label>
                 <label className="ghost-button flex min-h-14 cursor-pointer items-center justify-center gap-2 text-center">
                   <ImagePlus className="h-4 w-4 text-pulse-cyan" />
-                  {uploadingCover ? "上传中..." : "选择封面"}
+                  {uploadingCover ? "上传中..." : "选择封面 (可选)"}
                   <input className="sr-only" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" onChange={uploadCoverFile} disabled={uploadingCover} />
                 </label>
               </div>
+              {!coverUrl && playUrl ? (
+                <p className="text-xs text-white/52">
+                  未上传封面时，会自动抓取视频第一帧作为封面。也可点
+                  <button type="button" className="ml-1 text-pulse-cyan underline" onClick={() => ensureCover().catch((err) => pushToast(err instanceof Error ? err.message : "抓取失败", "error"))} disabled={uploadingCover}>
+                    立即生成
+                  </button>
+                  预览。
+                </p>
+              ) : null}
 
               {uploadProgress ? (
                 <UploadProgressMeter progress={uploadProgress} />
@@ -179,7 +217,7 @@ export function PublishPage() {
               <h2 className="font-black">上传状态</h2>
               <div className="mt-3 grid gap-2">
                 <UploadStatus label="视频" uploading={uploadingVideo} url={playUrl} />
-                <UploadStatus label="封面" uploading={uploadingCover} url={coverUrl} />
+                <UploadStatus label="封面 (可选)" uploading={uploadingCover} url={coverUrl} />
               </div>
             </section>
           </aside>

@@ -39,6 +39,28 @@ func (s *ModerationService) Report(ctx context.Context, reporterID uint, req Rep
 	return report, nil
 }
 
+// ListReports 列举举报记录（仅管理员可调用）。status 为空表示全部。
+func (s *ModerationService) ListReports(ctx context.Context, reviewerID uint, status AuditStatus, limit int) ([]ContentReport, error) {
+	if reviewerID == 0 {
+		return nil, ErrInvalidArgument
+	}
+	if s.repo == nil {
+		return nil, ErrInvalidArgument
+	}
+	if s.admin == nil || !s.admin.IsAdmin(reviewerID) {
+		return nil, ErrForbidden
+	}
+	if status != "" && status != AuditStatusPending && !status.IsReviewDecision() {
+		return nil, ErrInvalidStatus
+	}
+	return s.repo.ListReports(ctx, status, limit)
+}
+
+// IsAdmin 直接暴露给上层判断当前用户是否管理员。
+func (s *ModerationService) IsAdmin(accountID uint) bool {
+	return s != nil && s.admin != nil && s.admin.IsAdmin(accountID)
+}
+
 // Review 对一条举报做出审核结论（仅管理员可调用）。
 func (s *ModerationService) Review(ctx context.Context, reviewerID uint, req ReviewRequest) error {
 	if reviewerID == 0 || req.ReportID == 0 {

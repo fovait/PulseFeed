@@ -167,6 +167,48 @@ export type ProfileResponse = {
   vlogger_count: number;
 };
 
+export type FollowersResponse = {
+  followers: Account[];
+  follower_count: number;
+};
+
+export type FollowingResponse = {
+  vloggers: Account[];
+  vlogger_count: number;
+};
+
+export type VideoMetrics = {
+  video_id: ID;
+  impression_count: number;
+  view_count: number;
+  play_complete_count: number;
+  share_count: number;
+  updated_at?: string;
+};
+
+export type VideoMetricsResponse = {
+  metrics: VideoMetrics;
+};
+
+export type ModerationStatus = "pending" | "approved" | "rejected" | "hidden";
+
+export type ContentReport = {
+  id: ID;
+  reporter_id: ID;
+  reviewer_id?: ID;
+  target_id: ID;
+  target_type: "video" | "comment";
+  reason: string;
+  status: ModerationStatus;
+  review_note?: string;
+  created_at?: string;
+  reviewed_at?: string;
+};
+
+export type ListReportsResponse = {
+  reports: ContentReport[];
+};
+
 export type ReportResponse = {
   report: {
     id: ID;

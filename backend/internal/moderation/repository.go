@@ -12,6 +12,7 @@ type ModerationRepository interface {
 	CreateReport(ctx context.Context, r *ContentReport) error
 	UpdateReview(ctx context.Context, id, reviewerID uint, status AuditStatus, note string) error
 	LatestStatus(ctx context.Context, targetType ContentType, targetID uint) (AuditStatus, bool, error)
+	ListReports(ctx context.Context, status AuditStatus, limit int) ([]ContentReport, error)
 }
 
 type Repository struct {
@@ -54,6 +55,22 @@ func (r *Repository) UpdateReview(ctx context.Context, id, reviewerID uint, stat
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// ListReports 列举举报记录，可按状态过滤；status 为空时返回全部。
+func (r *Repository) ListReports(ctx context.Context, status AuditStatus, limit int) ([]ContentReport, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	var reports []ContentReport
+	q := r.db.WithContext(ctx).Model(&ContentReport{})
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order("created_at DESC").Limit(limit).Find(&reports).Error; err != nil {
+		return nil, err
+	}
+	return reports, nil
 }
 
 // LatestStatus 返回某目标最近一条举报的审核状态。无记录时 found=false。

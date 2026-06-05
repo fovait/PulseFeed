@@ -102,6 +102,47 @@ func (h *ModerationHandler) Review(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "review recorded"})
 }
 
+// ListReports 列举举报记录（仅管理员）。允许空 body：默认查全部、limit=50。
+func (h *ModerationHandler) ListReports(c *gin.Context) {
+	if h == nil || h.service == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "moderation service is not initialized"})
+		return
+	}
+
+	var req ListReportsRequest
+	_ = c.ShouldBindJSON(&req) // 允许空 body / 解析失败 → 用零值
+
+	reviewerID, err := jwt.GetAccountID(c)
+	if err != nil || reviewerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "login required"})
+		return
+	}
+
+	reports, err := h.service.ListReports(c.Request.Context(), reviewerID, req.Status, req.Limit)
+	if err != nil {
+		c.JSON(classifyModerationError(err), gin.H{"error": err.Error()})
+		return
+	}
+	if reports == nil {
+		reports = []ContentReport{}
+	}
+	c.JSON(http.StatusOK, ListReportsResponse{Reports: reports})
+}
+
+// IsAdmin 当前登录用户是否在管理员白名单内。游客直接返回 false。
+func (h *ModerationHandler) IsAdmin(c *gin.Context) {
+	if h == nil || h.service == nil {
+		c.JSON(http.StatusOK, IsAdminResponse{IsAdmin: false})
+		return
+	}
+	accountID, err := jwt.GetAccountID(c)
+	if err != nil || accountID == 0 {
+		c.JSON(http.StatusOK, IsAdminResponse{IsAdmin: false})
+		return
+	}
+	c.JSON(http.StatusOK, IsAdminResponse{IsAdmin: h.service.IsAdmin(accountID)})
+}
+
 func classifyModerationError(err error) int {
 	switch {
 	case errors.Is(err, ErrInvalidArgument),

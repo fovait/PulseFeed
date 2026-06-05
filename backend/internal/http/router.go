@@ -94,6 +94,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 		protectedVideoGroup.POST("/uploadVideo", videoHandler.UploadVideo)
 		protectedVideoGroup.POST("/uploadCover", videoHandler.UploadCover)
 		protectedVideoGroup.POST("/publish", videoHandler.PublishVideo)
+		protectedVideoGroup.POST("/delete", videoHandler.DeleteVideo)
 		protectedVideoGroup.POST("/chunk/init", chunkHandler.InitChunkUpload)
 		protectedVideoGroup.POST("/chunk/upload", chunkHandler.UploadChunk)
 		protectedVideoGroup.POST("/chunk/status", chunkHandler.ChunkStatus)
@@ -149,14 +150,17 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	socialService := social.NewSocialService(socialRepository, accountRepository, socialMQ, cache)
 	socialHandler := social.NewSocialHandler(socialService)
 	socialGroup := r.Group("/social")
+	{
+		// 粉丝/关注列表对外公开（前端通过传入 id 查询任意用户的列表）。
+		socialGroup.POST("/getAllFollowers", socialHandler.GetAllFollowers)
+		socialGroup.POST("/getAllVloggers", socialHandler.GetAllVloggers)
+	}
 	protectedSocialGroup := socialGroup.Group("")
 	protectedSocialGroup.Use(jwt.JWTAuth(accountRepository, cache))
 	{
 		protectedSocialGroup.POST("/follow", socialLimiter, socialHandler.Follow)
 		protectedSocialGroup.POST("/unfollow", socialLimiter, socialHandler.Unfollow)
 		protectedSocialGroup.POST("/isFollowed", socialHandler.IsFollowed)
-		protectedSocialGroup.POST("/getAllFollowers", socialHandler.GetAllFollowers)
-		protectedSocialGroup.POST("/getAllVloggers", socialHandler.GetAllVloggers)
 		protectedSocialGroup.POST("/getCounts", socialHandler.GetCounts)
 	}
 
@@ -252,11 +256,17 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 	protectedModerationGroup.Use(jwt.JWTAuth(accountRepository, cache))
 	{
 		protectedModerationGroup.POST("/report", moderationReportLimiter, moderationHandler.Report)
+		protectedModerationGroup.POST("/isAdmin", moderationHandler.IsAdmin)
 		protectedModerationGroup.POST(
 			"/review",
 			moderationReviewLimiter,
 			moderation.RequireAdmin(adminChecker),
 			moderationHandler.Review,
+		)
+		protectedModerationGroup.POST(
+			"/listReports",
+			moderation.RequireAdmin(adminChecker),
+			moderationHandler.ListReports,
 		)
 	}
 

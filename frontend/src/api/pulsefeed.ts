@@ -4,6 +4,11 @@ import type {
   Comment,
   EventType,
   FeedVideo,
+  FollowersResponse,
+  FollowingResponse,
+  ListReportsResponse,
+  ModerationStatus,
+  VideoMetricsResponse,
   LikesCursor,
   LikesFeedResponse,
   Message,
@@ -95,6 +100,13 @@ export const pulsefeedApi = {
     });
   },
 
+  listByTag(tagName: string, limit: number, beforeTime = 0) {
+    return apiClient.request<TimeFeedResponse>("/feed/listByTag", {
+      auth: false,
+      body: { tag_name: tagName, limit, before_time: beforeTime },
+    });
+  },
+
   listPopularity(limit: number, cursor?: PopularityCursor) {
     return apiClient.request<PopularityFeedResponse>("/feed/listByPopularity", {
       body: { limit, cursor },
@@ -169,6 +181,19 @@ export const pulsefeedApi = {
     });
   },
 
+  listVideosByAuthor(authorID: number) {
+    return apiClient.request<FeedVideo[]>("/video/listByAuthorID", {
+      auth: false,
+      body: { author_id: authorID },
+    });
+  },
+
+  deleteVideo(id: number) {
+    return apiClient.request<{ message: string }>("/video/delete", {
+      body: { id },
+    });
+  },
+
   likeVideo(videoID: number) {
     return apiClient.request<{ message: string }>("/like/like", {
       body: { video_id: videoID },
@@ -183,6 +208,18 @@ export const pulsefeedApi = {
 
   isLiked(videoID: number) {
     return apiClient.request<{ is_liked: boolean }>("/like/isLiked", {
+      body: { video_id: videoID },
+    });
+  },
+
+  listMyLikedVideos() {
+    return apiClient.request<FeedVideo[]>("/like/listMyLikedVideos", {
+      body: {},
+    });
+  },
+
+  getVideoMetrics(videoID: number) {
+    return apiClient.request<VideoMetricsResponse>("/event/getVideoMetrics", {
       body: { video_id: videoID },
     });
   },
@@ -203,6 +240,20 @@ export const pulsefeedApi = {
   deleteComment(commentID: number) {
     return apiClient.request<{ message: string }>("/comment/delete", {
       body: { comment_id: commentID },
+    });
+  },
+
+  listSocialFollowers(vloggerID: number) {
+    return apiClient.request<FollowersResponse>("/social/getAllFollowers", {
+      auth: false,
+      body: { vlogger_id: vloggerID },
+    });
+  },
+
+  listSocialFollowing(followerID: number) {
+    return apiClient.request<FollowingResponse>("/social/getAllVloggers", {
+      auth: false,
+      body: { follower_id: followerID },
     });
   },
 
@@ -263,6 +314,24 @@ export const pulsefeedApi = {
   report(targetType: "video" | "comment", targetID: number, reason: string) {
     return apiClient.request<ReportResponse>("/moderation/report", {
       body: { target_type: targetType, target_id: targetID, reason },
+    });
+  },
+
+  isModerationAdmin() {
+    return apiClient.request<{ is_admin: boolean }>("/moderation/isAdmin", {
+      body: {},
+    });
+  },
+
+  listModerationReports(status?: ModerationStatus, limit = 50) {
+    return apiClient.request<ListReportsResponse>("/moderation/listReports", {
+      body: status ? { status, limit } : { limit },
+    });
+  },
+
+  reviewModerationReport(reportID: number, status: ModerationStatus, note?: string) {
+    return apiClient.request<{ message: string }>("/moderation/review", {
+      body: { report_id: reportID, status, note: note || "" },
     });
   },
 

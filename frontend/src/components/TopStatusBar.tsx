@@ -1,4 +1,5 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { FeedMode } from "../types/api";
 
 const labels: Record<FeedMode, string> = {
@@ -25,13 +26,22 @@ export function TopStatusBar({
           <h1 className="text-lg font-black leading-none">PulseFeed</h1>
           <p className="mt-1 text-xs font-semibold text-white/58">{labels[mode]}视频流</p>
         </div>
-        <button
-          type="button"
-          className="pointer-events-auto rounded-lg bg-black/42 p-2 text-white backdrop-blur-md hover:bg-white/10"
-          onClick={onRefresh}
-        >
-          <RefreshCw className={["h-5 w-5", loading ? "animate-spin" : ""].join(" ")} />
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/search"
+            className="pointer-events-auto rounded-lg bg-black/42 p-2 text-white backdrop-blur-md hover:bg-white/10"
+            title="搜索"
+          >
+            <Search className="h-5 w-5" />
+          </Link>
+          <button
+            type="button"
+            className="pointer-events-auto rounded-lg bg-black/42 p-2 text-white backdrop-blur-md hover:bg-white/10"
+            onClick={onRefresh}
+          >
+            <RefreshCw className={["h-5 w-5", loading ? "animate-spin" : ""].join(" ")} />
+          </button>
+        </div>
       </div>
     </header>
   );
