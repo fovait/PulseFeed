@@ -108,8 +108,14 @@ func (c *Client) Unlock(ctx context.Context, key string, token string) error {
 	if c == nil || c.rdb == nil {
 		return nil
 	}
-	_, err := unlockScript.Run(ctx, c.rdb, []string{key}, token).Result()
-	return err
+	result, err := unlockScript.Run(ctx, c.rdb, []string{key}, token).Result()
+	if err != nil {
+		return err
+	}
+	if result == 0 {
+		return errors.New("lock already expired or owned by others")
+	}
+	return nil
 }
 
 func (c *Client) IncrementWithExpire(ctx context.Context, key string, expire time.Duration) (int64, error) {

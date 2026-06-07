@@ -73,7 +73,7 @@ func (w *LikeWorker) handleDelivery(ctx context.Context, d amqp.Delivery) {
 		if err := w.process(ctx, d.Body); err != nil {
 			if i >= maxRetries {
 				log.Printf("like worker: 重试 %d 次后仍失败, 丢弃: %v", maxRetries, err)
-				_ = d.Ack(false)
+				_ = d.Nack(false, false)
 				return
 			}
 			wait := time.Duration(1<<uint(i)) * time.Second
