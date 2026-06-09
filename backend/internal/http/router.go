@@ -17,6 +17,7 @@ import (
 	"PulseFeed/internal/middleware/ratelimit"
 	rediscache "PulseFeed/internal/middleware/redis"
 	"PulseFeed/internal/moderation"
+	"PulseFeed/internal/observability"
 	"PulseFeed/internal/recommend"
 	"PulseFeed/internal/social"
 	"PulseFeed/internal/video"
@@ -33,10 +34,13 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ) (*
 		log.Printf("SetTrustedProxies failed: %v", err)
 	}
 	r.Use(localDevCORS())
+	r.Use(observability.MetricsMiddleware())
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	// Prometheus 抓取端点;开发期直接挂在业务端口,生产可改挂到 pprof 私有端口。
+	r.GET("/metrics", observability.MetricsHandler())
 	r.Static("/static", "./.run/uploads")
 
 	// rate_limit

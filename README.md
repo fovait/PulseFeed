@@ -270,6 +270,28 @@ npm run dev    # 开发服务器，默认 http://localhost:5173
 
 **pprof**：开发模式下 API 进程在 `:6060`、Worker 进程在 `:6061` 暴露 pprof 端点，可用 `go tool pprof` 分析性能。
 
+**Prometheus 指标**：API 进程在 `:8080/metrics` 暴露 HTTP 指标，按 `method/path/status` 维度采集：
+
+| 指标 | 类型 | 用途 |
+|---|---|---|
+| `pulsefeed_http_requests_total` | Counter | 算 QPS 与错误率 |
+| `pulsefeed_http_request_duration_seconds` | Histogram | 算 p50/p95/p99 延迟分位 |
+| `pulsefeed_http_requests_in_flight` | Gauge | 瞬时并发 / 堆积 |
+
+> 路由标签用 `c.FullPath()`（路由模板而非真实 URL），避免路径参数造成高基数。压测时配一份 Prometheus 抓取 `:8080/metrics` 即可在 Grafana 看实时曲线：
+>
+> ```yaml
+> # prometheus.yml
+> scrape_configs:
+>   - job_name: pulsefeed-api
+>     scrape_interval: 5s
+>     static_configs:
+>       - targets: ["localhost:8080"]
+> ```
+>
+> 例：近 5 分钟各接口 p99 延迟 —
+> `histogram_quantile(0.99, sum(rate(pulsefeed_http_request_duration_seconds_bucket[5m])) by (le, path))`
+
 **降级策略**：Redis / RabbitMQ 均设计为可选依赖，不可用时自动降级为直查/直写 MySQL，服务不中断。
 
 ---
