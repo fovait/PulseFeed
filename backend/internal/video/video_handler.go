@@ -234,15 +234,15 @@ func (vh *VideoHandler) ListDetails(c *gin.Context) {
 	c.JSON(200, gin.H{"videos": videos})
 }
 
-func (vh *VideoHandler) UpdateLikesCount(c *gin.Context) {
-	var req UpdateLikesCountRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
-		return
-	}
-	if err := vh.service.UpdateLikesCount(c.Request.Context(), req.ID, req.LikesCount); err != nil {
-		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(200, gin.H{"message": "likes count updated"})
-}
+// func (vh *VideoHandler) UpdateLikesCount(c *gin.Context) {
+// 	var req UpdateLikesCountRequest
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+// 		return
+// 	}
+// 	if err := vh.service.UpdateLikesCount(c.Request.Context(), req.ID, req.LikesCount); err != nil {
+// 		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
+// 		return
+// 	}
+// 	c.JSON(200, gin.H{"message": "likes count updated"})
+// }

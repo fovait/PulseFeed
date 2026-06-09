@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -94,7 +92,9 @@ func (vs *VideoService) Delete(ctx context.Context, id uint, authorID uint) erro
 	}
 	if vs.cache != nil {
 		cacheKey := vs.cache.Key("video:detail:id=%d", id)
-		_ = vs.cache.Del(context.Background(), cacheKey)
+		delCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		_ = vs.cache.Del(delCtx, cacheKey)
 	}
 	return nil
 }
@@ -164,9 +164,11 @@ func (vs *VideoService) GetDetail(ctx context.Context, id uint) (*Video, error) 
 		return loadAndCache(ctx, id, cacheKey)
 	}
 
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
 	for i := 0; i < 5; i++ {
 		select {
-		case <-time.After(20 * time.Microsecond):
+		case <-ticker.C:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -213,42 +215,42 @@ func (vs *VideoService) ListDetails(ctx context.Context, ids []uint) ([]Video, e
 	return ordered, nil
 }
 
-func (vs *VideoService) UpdateLikesCount(ctx context.Context, id uint, likesCount int64) error {
-	if err := vs.repo.UpdateLikesCount(ctx, id, likesCount); err != nil {
-		return err
-	}
-	return nil
-}
+// func (vs *VideoService) UpdateLikesCount(ctx context.Context, id uint, likesCount int64) error {
+// 	if err := vs.repo.UpdateLikesCount(ctx, id, likesCount); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
-func (vs *VideoService) UpdatePopularity(ctx context.Context, id uint, change int64) error {
-	if err := vs.repo.UpdatePopularity(ctx, id, change); err != nil {
-		return err
-	}
+// func (vs *VideoService) UpdatePopularity(ctx context.Context, id uint, change int64) error {
+// 	if err := vs.repo.UpdatePopularity(ctx, id, change); err != nil {
+// 		return err
+// 	}
 
-	if vs.popularityMQ != nil {
-		if err := vs.popularityMQ.Update(ctx, id, change); err == nil {
-			return nil
-		}
-	}
+// 	if vs.popularityMQ != nil {
+// 		if err := vs.popularityMQ.Update(ctx, id, change); err == nil {
+// 			return nil
+// 		}
+// 	}
 
-	if vs.cache != nil {
-		// 1) 详情缓存：直接失效（最简单靠谱）
-		opCtx_, cancel_ := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel_()
-		if err := vs.cache.Del(opCtx_, vs.cache.Key("video:detail:id=%d", id)); err != nil {
-			log.Printf("failed to delete video cache: %v", err)
-		}
+// 	if vs.cache != nil {
+// 		// 1) 详情缓存：直接失效（最简单靠谱）
+// 		opCtx_, cancel_ := context.WithTimeout(context.Background(), 100*time.Millisecond)
+// 		defer cancel_()
+// 		if err := vs.cache.Del(opCtx_, vs.cache.Key("video:detail:id=%d", id)); err != nil {
+// 			log.Printf("failed to delete video cache: %v", err)
+// 		}
 
-		// 2) 热榜：写到“时间窗ZSET”，不要用 detail key
-		now := time.Now().UTC().Truncate(time.Minute)
-		windowKey := vs.cache.Key("hot:video:1m:%s", now.Format("200601021504"))
-		member := strconv.FormatUint(uint64(id), 10)
+// 		// 2) 热榜：写到“时间窗ZSET”，不要用 detail key
+// 		now := time.Now().UTC().Truncate(time.Minute)
+// 		windowKey := vs.cache.Key("hot:video:1m:%s", now.Format("200601021504"))
+// 		member := strconv.FormatUint(uint64(id), 10)
 
-		opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-		defer cancel()
+// 		opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+// 		defer cancel()
 
-		_ = vs.cache.ZincrBy(opCtx, windowKey, member, float64(change))
-		_ = vs.cache.Expire(opCtx, windowKey, 2*time.Hour)
-	}
-	return nil
-}
+// 		_ = vs.cache.ZincrBy(opCtx, windowKey, member, float64(change))
+// 		_ = vs.cache.Expire(opCtx, windowKey, 2*time.Hour)
+// 	}
+// 	return nil
+// }

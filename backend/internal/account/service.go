@@ -66,7 +66,7 @@ func (as *AccountService) Rename(ctx context.Context, accountID uint, newUsernam
 		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 		defer cancel()
 
-		if err := as.cache.SetBytes(cacheCtx, key, []byte(token), 24*time.Hour); err != nil {
+		if err := as.cache.SetBytes(cacheCtx, key, []byte(token), 20*time.Minute); err != nil {
 			log.Printf("failed to set cache: %v", err)
 		}
 	}
