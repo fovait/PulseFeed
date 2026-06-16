@@ -118,6 +118,7 @@ func (w *CommentWorker) applyPublish(ctx context.Context, evt *rabbitmq.CommentE
 	}
 
 	c := &video.Comment{
+		EventID:  &evt.EventID,
 		Username: strings.TrimSpace(evt.Username),
 		VideoID:  evt.VideoID,
 		AuthorID: evt.AuthorID,

@@ -96,6 +96,12 @@ func (vs *VideoService) Delete(ctx context.Context, id uint, authorID uint) erro
 		defer cancel()
 		_ = vs.cache.Del(delCtx, cacheKey)
 	}
+	if vs.cache != nil {
+		cacheKey := vs.cache.Key("video:entity:%d", id)
+		delCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		_ = vs.cache.Del(delCtx, cacheKey)
+	}
 	return nil
 }
 

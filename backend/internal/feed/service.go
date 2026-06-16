@@ -760,7 +760,7 @@ func (f *FeedService) ListByFollowing(
 		lockKey := "lock:" + cacheKey
 
 		lockCtx, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
-		token, locked, _ := f.rediscache.Lock(lockCtx, lockKey, 500*time.Millisecond)
+		token, locked, _ := f.rediscache.Lock(lockCtx, lockKey, 2*time.Second)
 		cancel()
 
 		if locked {
@@ -1205,7 +1205,7 @@ func (f *FeedService) rebuildPopularitySnapshotFromDB(
 			return nil, nil
 		}
 
-		bgCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
 		if err := f.rediscache.ZAdd(bgCtx, destKey, zs...); err != nil {

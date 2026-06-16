@@ -5,6 +5,7 @@ import (
 	rediscache "PulseFeed/internal/middleware/redis"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,11 @@ func Limit(
 	window time.Duration,
 	keyFunc KeyFunc,
 ) gin.HandlerFunc {
+	// 压测开关：RATELIMIT_DISABLED=1 时全局旁路限流（仅用于本地压测，勿在生产开启）。
+	// 在构造期判定一次即可，避免每个请求都读环境变量。
+	if os.Getenv("RATELIMIT_DISABLED") == "1" {
+		return func(c *gin.Context) { c.Next() }
+	}
 	return func(c *gin.Context) {
 		if cache == nil || keyFunc == nil || maxRequest <= 0 || window <= 0 {
 			c.Next()

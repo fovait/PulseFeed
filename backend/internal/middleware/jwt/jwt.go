@@ -99,7 +99,7 @@ func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo 
 		cacheCtx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Millisecond)
 		defer cancel()
 
-		if err := cache.SetBytes(cacheCtx, key, []byte(tokenString), 24*time.Hour); err != nil {
+		if err := cache.SetBytes(cacheCtx, key, []byte(tokenString), 20*time.Minute); err != nil {
 			log.Printf("failed to set cache: %v", err)
 		}
 	}

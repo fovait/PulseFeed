@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 
-	"gorm.io/gorm"
 )
 
 type CommentService struct {
@@ -46,10 +45,19 @@ func (s *CommentService) Publish(ctx context.Context, comment *Comment) error {
 		return errors.New("video not found")
 	}
 
+	// 在 MQ / 降级分叉之前生成 eventID，让两条路径共享同一个：
+	// MQ 模糊失败（broker 已收到但 ACK 超时）触发降级时，降级直写与 worker 消费写入
+	// 落到同一 eventID，由唯一索引 uk_comment_event_id 去重，避免重复评论。
+	eventID, err := app.RandHex(16)
+	if err != nil {
+		return err
+	}
+	comment.EventID = &eventID
+
 	mysqlEnqueued := false
 	redisEnqueued := false
 	if s.commentMQ != nil {
-		if err := s.commentMQ.Publish(ctx, comment.Username, comment.VideoID, comment.AuthorID, comment.Content); err == nil {
+		if err := s.commentMQ.Publish(ctx, eventID, comment.Username, comment.VideoID, comment.AuthorID, comment.Content); err == nil {
 			mysqlEnqueued = true
 		}
 	}
@@ -65,23 +73,7 @@ func (s *CommentService) Publish(ctx context.Context, comment *Comment) error {
 
 	// Fallback: direct MySQL write when comment MQ publish fails.
 	if !mysqlEnqueued {
-		if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Select("id").First(&Video{}, comment.VideoID).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return errors.New("video not found")
-				}
-				return err
-			}
-			if err := tx.Create(comment).Error; err != nil {
-				return err
-			}
-			if err := tx.Model(&Video{}).Where("id = ?", comment.VideoID).
-				UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error; err != nil {
-				return err
-			}
-			return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
-				UpdateColumn("comments_count", gorm.Expr("comments_count + 1")).Error
-		}); err != nil {
+		if err := s.repo.ApplyPublishTx(ctx, comment); err != nil {
 			return err
 		}
 	}

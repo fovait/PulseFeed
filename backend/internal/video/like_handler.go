@@ -27,7 +27,7 @@ func (lh *LikeHandler) Like(c *gin.Context) {
 	}
 
 	if err := lh.service.Like(c.Request.Context(), like); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(classifyLikeError(err), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -46,11 +46,11 @@ func (lh *LikeHandler) UnLike(c *gin.Context) {
 	}
 
 	if err := lh.service.UnLike(c.Request.Context(), like); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(classifyLikeError(err), gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "like success"})
+	c.JSON(200, gin.H{"message": "unlike success"})
 }
 
 func (lh *LikeHandler) IsLiked(c *gin.Context) {
@@ -61,7 +61,7 @@ func (lh *LikeHandler) IsLiked(c *gin.Context) {
 
 	isLiked, err := lh.service.IsLiked(c.Request.Context(), req.VideoID, accountID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 
@@ -77,7 +77,7 @@ func (lh *LikeHandler) ListMyLikedVideos(c *gin.Context) {
 
 	videos, err := lh.service.ListLikedVideos(c.Request.Context(), accountID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(app.ClassifyHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	if videos == nil {

@@ -88,3 +88,28 @@ func (r *Repository) LatestStatus(ctx context.Context, targetType ContentType, t
 	}
 	return report.Status, true, nil
 }
+
+// LatestStatuses 批量返回多个目标的最新审核状态，替代逐条调用 LatestStatus 的 N+1 模式。
+// 无记录的 targetID 不会出现在返回的 map 中（调用方视为"未被举报/可见"）。
+func (r *Repository) LatestStatuses(ctx context.Context, targetType ContentType, targetIDs []uint) (map[uint]AuditStatus, error) {
+	if len(targetIDs) == 0 {
+		return map[uint]AuditStatus{}, nil
+	}
+	var reports []ContentReport
+	err := r.db.WithContext(ctx).
+		Where("target_type = ? AND target_id IN ?", targetType, targetIDs).
+		Order("created_at DESC").
+		Find(&reports).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint]AuditStatus, len(targetIDs))
+	for _, rep := range reports {
+		if _, seen := result[rep.TargetID]; !seen {
+			// DESC 排序后第一次出现 = 该 targetID 最新的一条记录
+			result[rep.TargetID] = rep.Status
+		}
+	}
+	return result, nil
+}

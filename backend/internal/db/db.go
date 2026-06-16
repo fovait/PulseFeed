@@ -11,6 +11,7 @@ import (
 	"PulseFeed/internal/video"
 	"PulseFeed/internal/worker"
 	"fmt"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -26,6 +27,20 @@ func NewDB(dbcfg config.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 连接池上限：database/sql 默认无限连接，高并发(尤其缓存被绕过时)会瞬间开出
+	// 几百个连接打爆 MySQL 的 max_connections(默认 151)，引发级联失败。
+	// 这里把上限压在 MySQL 容量之下，给 worker 等其它客户端留余量；
+	// 超过上限的请求改为排队等连接(延迟有界)，而非直接报错雪崩。
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
+
 	return db, nil
 }
 

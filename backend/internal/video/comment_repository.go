@@ -73,6 +73,9 @@ func (r *CommentRepository) ApplyPublishTx(ctx context.Context, c *Comment) erro
 		}
 
 		if err := tx.Create(c).Error; err != nil {
+			if isDupKey(err) {
+				return nil
+			}
 			return err
 		}
 
@@ -111,9 +114,15 @@ func (r *CommentRepository) ApplyDeleteTx(ctx context.Context, id uint) (deleted
 		}
 		deleted = true
 
+		if err := tx.Model(&Video{}).
+			Where("id = ?", comment.VideoID).
+			UpdateColumn("comments_count", gorm.Expr("GREATEST(comments_count - 1, 0)")).Error; err != nil {
+			return err
+		}
+
 		return tx.Model(&Video{}).
 			Where("id = ?", comment.VideoID).
-			UpdateColumn("comments_count", gorm.Expr("GREATEST(comments_count - 1, 0)")).Error
+			UpdateColumn("popularity", gorm.Expr("GREATEST(popularity - 1, 0)")).Error
 	})
 
 	return deleted, err

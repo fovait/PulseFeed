@@ -143,7 +143,7 @@ func (as *AccountService) Login(ctx context.Context, username, password string) 
 		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 		defer cancel()
 
-		if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(accessToken), 24*time.Hour); err != nil {
+		if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(accessToken), 20*time.Minute); err != nil {
 			log.Printf("failed to set cache: %v", err)
 		}
 
@@ -231,7 +231,7 @@ func (as *AccountService) RefreshAccessToken(ctx context.Context, refreshToken s
 						return "", 0, "", err
 					}
 
-					if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(newToken), 24*time.Hour); err != nil {
+					if err := as.cache.SetBytes(cacheCtx, as.cache.Key("account:%d", account.ID), []byte(newToken), 20*time.Minute); err != nil {
 						log.Printf("failed to set cache: %v", err)
 					}
 					return newToken, account.ID, account.Username, nil

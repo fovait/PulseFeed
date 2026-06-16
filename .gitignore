@@ -4,3 +4,18 @@ CLAUDE.md
 QA.md
 INTERVIEW.md
 qa.txt
+
+# personal notes & artifacts
+ARCHITECTURE.md
+INTERVIEW_PRESSURE.md
+findings.md
+progress.md
+task_plan.md
+resume.pdf
+like_flow.excalidraw
+like_flow.png
+diagrams/
+
+# runtime & test results
+backend/.run/
+loadtest/RESULTS.md

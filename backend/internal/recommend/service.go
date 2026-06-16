@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"sort"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -143,16 +146,29 @@ func (s *RecommendService) Recommend(ctx context.Context, accountID uint, req Re
 
 // fetchAllSources 从所有候选源拉取候选（单源失败不影响其他源）。
 func (s *RecommendService) fetchAllSources(ctx context.Context, accountID uint, fetchLimit int) []Candidate {
+	n := len(s.sources)
+	results := make([][]Candidate, n)
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(4)
+
+	for i, src := range s.sources {
+		i, src := i, src
+		g.Go(func() error {
+			srcCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+			defer cancel()
+			cs, err := src.Fetch(srcCtx, accountID, fetchLimit)
+			if err != nil {
+				log.Printf("recommend: source %s fetch failed: %v", src.Name(), err)
+				return nil
+			}
+			results[i] = cs
+			return nil
+		})
+	}
+	_ = g.Wait()
+
 	var candidates []Candidate
-	for _, src := range s.sources {
-		if src == nil {
-			continue
-		}
-		cs, err := src.Fetch(ctx, accountID, fetchLimit)
-		if err != nil {
-			log.Printf("recommend: source %s fetch failed: %v", src.Name(), err)
-			continue
-		}
+	for _, cs := range results {
 		candidates = append(candidates, cs...)
 	}
 	return candidates

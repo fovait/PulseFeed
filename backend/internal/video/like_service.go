@@ -10,7 +10,10 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrLockConflict = errors.New("operation in progress, please retry")
+
 const LikePopularityDelta int64 = 1
+const LikeLockTTL = 5 * time.Second
 
 type LikeService struct {
 	repo         *LikeRepository
@@ -36,14 +39,18 @@ func NewLikeService(
 	}
 }
 
+func (s *LikeService) likeLockKey(prefix string, videoID, accountID uint) string {
+	return s.cache.Key("like:lock:%s:%d:%d", prefix, videoID, accountID)
+}
+
 // 最终一致性，不确保处理成功，只是丢给消息队列去异步处理
 func (s *LikeService) Like(ctx context.Context, like *Like) error {
 	if like == nil {
-		return errors.New("like is nil")
+		return ErrLikeNil
 	}
 
 	if like.VideoID == 0 || like.AccountID == 0 {
-		return errors.New("video_id and account_id are required")
+		return ErrInvalidLike
 	}
 
 	if s.VideoRepo != nil {
@@ -52,8 +59,24 @@ func (s *LikeService) Like(ctx context.Context, like *Like) error {
 			return err
 		}
 		if !ok {
-			return errors.New("video not found")
+			return ErrVideoNotFound
 		}
+	}
+
+	if s.cache != nil {
+		lockKey := s.likeLockKey("like", like.VideoID, like.AccountID)
+		lockCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+
+		token, ok, err := s.cache.Lock(lockCtx, lockKey, LikeLockTTL)
+		if err != nil || !ok {
+			return ErrLockConflict
+		}
+		defer func() {
+			unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer unlockCancel()
+			s.cache.Unlock(unlockCtx, lockKey, token)
+		}()
 	}
 
 	isLiked, err := s.repo.IsLiked(ctx, like.VideoID, like.AccountID)
@@ -61,7 +84,7 @@ func (s *LikeService) Like(ctx context.Context, like *Like) error {
 		return err
 	}
 	if isLiked {
-		return errors.New("user has liked this video")
+		return ErrAlreadyLiked
 	}
 
 	like.CreatedAt = time.Now()
@@ -87,13 +110,13 @@ func (s *LikeService) Like(ctx context.Context, like *Like) error {
 		err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Select("id").First(&Video{}, like.VideoID).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return errors.New("video not found")
+					return ErrVideoNotFound
 				}
 				return err
 			}
 			if err := tx.Create(like).Error; err != nil {
 				if isDupKey(err) {
-					return errors.New("user has liked this video")
+					return ErrAlreadyLiked
 				}
 				return err
 			}
@@ -118,10 +141,10 @@ func (s *LikeService) Like(ctx context.Context, like *Like) error {
 
 func (s *LikeService) UnLike(ctx context.Context, like *Like) error {
 	if like == nil {
-		return errors.New("like is nil")
+		return ErrLikeNil
 	}
 	if like.VideoID == 0 || like.AccountID == 0 {
-		return errors.New("video_id and account_id are required")
+		return ErrInvalidLike
 	}
 
 	if s.VideoRepo != nil {
@@ -130,8 +153,24 @@ func (s *LikeService) UnLike(ctx context.Context, like *Like) error {
 			return err
 		}
 		if !ok {
-			return errors.New("video not found")
+			return ErrVideoNotFound
 		}
+	}
+
+	if s.cache != nil {
+		lockKey := s.likeLockKey("unlike", like.VideoID, like.AccountID)
+		lockCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+
+		token, ok, err := s.cache.Lock(lockCtx, lockKey, LikeLockTTL)
+		if err != nil || !ok {
+			return ErrLockConflict
+		}
+		defer func() {
+			unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer unlockCancel()
+			s.cache.Unlock(unlockCtx, lockKey, token)
+		}()
 	}
 
 	isLiked, err := s.repo.IsLiked(ctx, like.VideoID, like.AccountID)
@@ -139,7 +178,7 @@ func (s *LikeService) UnLike(ctx context.Context, like *Like) error {
 		return err
 	}
 	if !isLiked {
-		return errors.New("user has not liked this video")
+		return ErrNotLiked
 	}
 
 	mysqlEnqueued := false
@@ -166,7 +205,7 @@ func (s *LikeService) UnLike(ctx context.Context, like *Like) error {
 				return del.Error
 			}
 			if del.RowsAffected == 0 {
-				return errors.New("user has not liked this video")
+				return ErrNotLiked
 			}
 
 			if err := tx.Model(&Video{}).Where("id = ?", like.VideoID).
