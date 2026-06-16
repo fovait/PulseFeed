@@ -27,7 +27,8 @@ PulseFeed/
 ├── backend/
 │   ├── cmd/
 │   │   ├── main.go          # API 服务入口（端口 8080）
-│   │   └── worker/          # Worker 进程入口（消费 MQ）
+│   │   ├── worker/          # Worker 进程入口（消费 MQ）
+│   │   └── seed/            # 数据填充脚本
 │   ├── configs/
 │   │   └── config.yaml      # 配置文件
 │   └── internal/
@@ -47,6 +48,9 @@ PulseFeed/
 │       ├── db/              # 数据库连接 & 自动迁移
 │       ├── http/            # 路由组装 & 后台任务启动
 │       └── observability/   # pprof 性能分析服务器
+├── loadtest/
+│   ├── k6/                  # k6 压测脚本（读流 / 写流）
+│   └── run.sh               # 一键运行压测
 └── frontend/
     └── src/
         ├── pages/           # 页面组件（11 个页面）
@@ -83,7 +87,9 @@ PulseFeed/
 
 ### 点赞 & 评论
 - 点赞/取消点赞 → 优先发 MQ，Worker 异步落库；MQ 不可用时直接写 MySQL
-- 评论发布/删除同上，评论删除自动回滚 `comments_count`
+- 点赞操作加 Redis 分布式锁（per videoID+accountID），防止并发重复点赞
+- 评论发布/删除同上；评论删除同时回滚 `comments_count` 和 `popularity`
+- 评论幂等：发布前生成 `eventID`，MQ 路径与降级直写共享同一 ID，唯一索引去重防重复评论
 - `@mention` 自动解析，触发站内通知
 
 ### 社交
@@ -143,6 +149,10 @@ LikeService.Like()
 ```
 
 **防缓存击穿**：Redis 分布式锁 + double-check + singleflight
+
+**推荐系统**：多候选源并行拉取（errgroup，每源 200ms 超时），单源失败不影响其他源
+
+**数据库连接池**：MaxOpenConns=50 / MaxIdleConns=25，防止高并发时打爆 MySQL max_connections
 
 ---
 
@@ -293,6 +303,16 @@ npm run dev    # 开发服务器，默认 http://localhost:5173
 > `histogram_quantile(0.99, sum(rate(pulsefeed_http_request_duration_seconds_bucket[5m])) by (le, path))`
 
 **降级策略**：Redis / RabbitMQ 均设计为可选依赖，不可用时自动降级为直查/直写 MySQL，服务不中断。
+
+**压测**：`loadtest/` 目录内置 k6 脚本，覆盖读流（Feed 拉取）和写流（点赞/评论）：
+
+```bash
+cd loadtest
+./run.sh          # 默认跑 read + write 两个场景
+# 或单独运行
+k6 run k6/read.js
+k6 run k6/write.js
+```
 
 ---
 
