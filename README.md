@@ -67,7 +67,7 @@ PulseFeed/
 
 ### 账号
 - 注册 / 登录 / 登出
-- Access Token（24h）+ Refresh Token（7d）双 Token 机制
+- Access Token（15min）+ Refresh Token（7d）双 Token 机制
 - 改用户名（同步刷新 Token）/ 改密码
 - 更新个人简介和头像
 - Redis 鉴权热缓存，Miss 时自动回源 MySQL 自愈
@@ -149,6 +149,19 @@ LikeService.Like()
 ```
 
 **防缓存击穿**：Redis 分布式锁 + double-check + singleflight
+
+**限流**（Redis 滑动计数器，`RATELIMIT_DISABLED=1` 可旁路用于压测）：
+
+| 接口 | 限制 | 维度 |
+|---|---|---|
+| 登录 | 10 次 / 分钟 | IP |
+| 注册 | 5 次 / 小时 | IP |
+| 点赞/取消点赞 | 30 次 / 分钟 | 账号 |
+| 评论 | 10 次 / 分钟 | 账号 |
+| 关注/取关 | 20 次 / 分钟 | 账号 |
+| 推荐流 | 60 次 / 分钟 | 账号 |
+| 举报 | 10 次 / 分钟 | 账号 |
+| 审核（管理员）| 30 次 / 分钟 | 账号 |
 
 **推荐系统**：多候选源并行拉取（errgroup，每源 200ms 超时），单源失败不影响其他源
 
@@ -246,6 +259,8 @@ npm run dev    # 开发服务器，默认 http://localhost:5173
 | 关注流 | `/feed/listByFollowing` | 是 |
 | 热门流 | `/feed/listByPopularity` | 否 |
 | 标签流 | `/feed/listByTag` | 否 |
+| 点赞榜 | `/feed/listLikesCount` | 否 |
+| 个性化推荐 | `/feed/recommend` | 否（登录态个性化）|
 | 点赞 | `/like/like` | 是 |
 | 发评论 | `/video/comment/publish` | 是 |
 | 关注 | `/social/follow` | 是 |
